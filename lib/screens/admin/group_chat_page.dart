@@ -843,7 +843,7 @@ class _GroupChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color bubbleMe = isDark ? const Color(0xFF005C4B) : const Color(0xFFE7FFDB);
-    final Color bubbleOther = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color bubbleOther = isDark ? const Color(0xFF232D36) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color senderColor = isDark ? Colors.blueAccent[100]! : Colors.blueAccent[700]!;
 

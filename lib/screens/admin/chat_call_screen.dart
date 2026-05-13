@@ -388,7 +388,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           tabs: const [
             Tab(text: 'CHATS'),
-            // Tab(text: 'STATUS'),
+            Tab(text: 'STATUS'),
             Tab(text: 'CALLS'),
           ],
         ),
