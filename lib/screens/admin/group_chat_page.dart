@@ -534,7 +534,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     }
   }
-
+  Widget _buildBody() {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Stack(
       children: [

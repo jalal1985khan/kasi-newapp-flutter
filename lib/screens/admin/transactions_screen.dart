@@ -48,6 +48,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     await _fetchTransactions();
   }
 
+  @override
+  Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color cardBg = isDark ? const Color(0xFF202C33) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;

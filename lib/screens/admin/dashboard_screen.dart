@@ -81,6 +81,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildErrorView() {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -98,6 +100,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  Widget _buildDashboardBody() {
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color cardBg = isDark ? const Color(0xFF202C33) : Colors.white;

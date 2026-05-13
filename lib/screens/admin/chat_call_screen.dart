@@ -218,8 +218,9 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showCreateGroupDialog(BuildContext context) async {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -362,8 +363,9 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +388,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           tabs: const [
             Tab(text: 'CHATS'),
-            Tab(text: 'STATUS'),
+            // Tab(text: 'STATUS'),
             Tab(text: 'CALLS'),
           ],
         ),

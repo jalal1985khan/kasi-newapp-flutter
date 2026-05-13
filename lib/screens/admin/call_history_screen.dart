@@ -73,6 +73,8 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
@@ -178,7 +180,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                       children: [
                         Icon(isPlaying ? Icons.stop : Icons.play_arrow, size: 18, color: Colors.white),
                         const SizedBox(width: 4),
-                        const Text(isPlaying ? 'Stop' : 'Play', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text(isPlaying ? 'Stop' : 'Play', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),

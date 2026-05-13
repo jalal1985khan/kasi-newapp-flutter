@@ -81,7 +81,8 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
   Future<void> _onRefresh() async {
     await _fetchEmployees();
   }
-
+  @override
+  Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
@@ -178,14 +179,17 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       builder: (context) => FutureBuilder<Map<String, dynamic>>(
         future: _employeeService.getEmployeeDetails(userId),
         builder: (context, snapshot) {
+          final bool isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _buildBottomSheetContainer(
+              modalBg,
+              isDark,
               const Center(child: CircularProgressIndicator(color: Color(0xFF00A884))),
             );
           }
 
-          final bool isDark = Theme.of(context).brightness == Brightness.dark;
-          final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
           final Color textColor = isDark ? Colors.white : Colors.black87;
           final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
           

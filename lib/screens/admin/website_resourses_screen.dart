@@ -33,6 +33,10 @@ class _WebsiteResourcesScreenState extends State<WebsiteResourcesScreen> {
       });
     }
   }
+  void _showAddEditDialog({WebsiteResource? resource}) {
+    final nameCtrl = TextEditingController(text: resource?.name ?? '');
+    final urlCtrl = TextEditingController(text: resource?.url ?? '');
+    final sNoCtrl = TextEditingController(text: resource?.sNo.toString() ?? '');
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color modalBg = isDark ? const Color(0xFF202C33) : Colors.white;

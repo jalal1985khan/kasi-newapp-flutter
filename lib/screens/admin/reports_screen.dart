@@ -100,10 +100,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color cardBg = isDark ? const Color(0xFF202C33) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.6) : Colors.black54;
+    const Color waTeal = Color(0xFF00A884);
+    final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
 
     return AdminLayout(
       title: 'Reports',
