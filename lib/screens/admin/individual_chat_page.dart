@@ -805,15 +805,22 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                     onPressed: _togglePreviewPlay,
                   ),
                   Expanded(
-                    child: Slider(
-                      value: _previewPosition.inMilliseconds.toDouble(),
-                      max: _previewDuration.inMilliseconds.toDouble() > 0
-                          ? _previewDuration.inMilliseconds.toDouble()
-                          : 1.0,
-                      activeColor: const Color(0xFF1A73E8),
-                      onChanged: (val) {
-                        _previewPlayer.seek(Duration(milliseconds: val.toInt()));
-                      },
+                    child: Builder(
+                      builder: (context) {
+                        final double maxVal = _previewDuration.inMilliseconds.toDouble();
+                        final double currentVal = _previewPosition.inMilliseconds.toDouble();
+                        final double sliderMax = maxVal > 0 ? maxVal : (currentVal > 0 ? currentVal + 1000 : 1.0);
+                        final double sliderValue = currentVal.clamp(0.0, sliderMax);
+                        
+                        return Slider(
+                          value: sliderValue,
+                          max: sliderMax,
+                          activeColor: const Color(0xFF1A73E8),
+                          onChanged: (val) {
+                            _previewPlayer.seek(Duration(milliseconds: val.toInt()));
+                          },
+                        );
+                      }
                     ),
                   ),
                   IconButton(
