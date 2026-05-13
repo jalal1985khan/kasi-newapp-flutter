@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "357014949910",
+    "project_id": "daily-news-update-app-9dfea",
+    "storage_bucket": "daily-news-update-app-9dfea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357014949910:android:1a610a795c03eee104a537",
+        "android_client_info": {
+          "package_name": "com.example.employer_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgdK5ZW-eHPElduT2u5FYa4dSrpAgipVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
