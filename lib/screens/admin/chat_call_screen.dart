@@ -374,7 +374,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
     final Color waGrey = isDark ? const Color(0xFF8696A0) : Colors.black54;
 
     return DefaultTabController(
-      length: 3,
+      length: 2,
       initialIndex: 0,
       child: AdminLayout(
         title: 'Chats',
@@ -388,7 +388,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           tabs: const [
             Tab(text: 'CHATS'),
-            Tab(text: 'STATUS'),
+            // Tab(text: 'STATUS'),
             Tab(text: 'CALLS'),
           ],
         ),
@@ -411,7 +411,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
                 : _buildChatList(),
             
             // Status Tab Placeholder
-            _buildPlaceholderTab(Icons.update, 'Status updates will appear here'),
+            // _buildPlaceholderTab(Icons.update, 'Status updates will appear here'),
             
             // Calls Tab Placeholder
             _buildPlaceholderTab(Icons.call_outlined, 'Start a call with your contacts'),
