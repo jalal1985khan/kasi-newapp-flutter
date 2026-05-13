@@ -9,6 +9,9 @@ import '../../models/chat_conversation_model.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'admin_common_widgets/admin_layout.dart';
+import '../special_widgets/call_overlay.dart';
+import '../../services/admin/call_log_service.dart';
+import '../../models/call_log_model.dart';
 
 class ChatCallScreen extends StatefulWidget {
   const ChatCallScreen({super.key});
@@ -17,23 +20,35 @@ class ChatCallScreen extends StatefulWidget {
   State<ChatCallScreen> createState() => _ChatCallScreenState();
 }
 
-class _ChatCallScreenState extends State<ChatCallScreen> {
+class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStateMixin {
   final ChatService _chatService = ChatService();
   final AuthService _authService = AuthService();
   final SocketService _socketService = SocketService();
   final GroupChatService _groupChatService = GroupChatService();
   List<Conversation> _conversations = [];
   List<dynamic> _groups = [];
+  List<CallLog> _callLogs = [];
   bool _isLoading = true;
   String? _currentUserId;
   final Map<String, bool> _onlineStatuses = {};
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _socketService.connect();
     _setupSocketListeners();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   void _setupSocketListeners() {
@@ -93,12 +108,14 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
     try {
       final conversationsResponse = await _chatService.getConversations();
       final groupsResponse = await _groupChatService.getMyGroups();
+      final callLogsResponse = await CallLogService.getAdminCallLogs();
       final user = await _authService.getUser();
 
       if (mounted) {
         setState(() {
           _conversations = conversationsResponse.conversations;
           _groups = groupsResponse['groups'] ?? [];
+          _callLogs = callLogsResponse ?? [];
           _currentUserId = user?['id'] ?? user?['_id'];
           _isLoading = false;
         });
@@ -221,6 +238,85 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
     ),
   );
 }
+
+  void _showCallDialog(BuildContext context) async {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+
+    final allPartners = await _chatService.getPartners();
+    if (!mounted) return;
+
+    final partners = allPartners
+        .where((p) => p['role'] != 'super_admin')
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: modalBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Select Contact to Call',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
+                ),
+              ),
+              Divider(color: isDark ? Colors.white10 : Colors.black12),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: partners.length,
+                  itemBuilder: (context, index) {
+                    final partner = partners[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
+                        child: Text(
+                          partner['name'][0].toUpperCase(),
+                          style: const TextStyle(color: Color(0xFF00A884)),
+                        ),
+                      ),
+                      title: Text(partner['name'], style: TextStyle(color: textColor)),
+                      subtitle: Text(
+                        partner['role']
+                            .toString()
+                            .replaceAll('_', ' ')
+                            .toUpperCase(),
+                        style: TextStyle(fontSize: 12, color: subTextColor),
+                      ),
+                      trailing: const Icon(Icons.call, color: Color(0xFF00A884)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        CallOverlayManager.show(
+                          context,
+                          partner['name'],
+                          '',
+                          partner['_id'],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showCreateGroupDialog(BuildContext context) async {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -367,44 +463,128 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
   );
 }
 
+  Widget _buildCallList() {
+    if (_callLogs.isEmpty) {
+      return _buildPlaceholderTab(Icons.call_outlined, 'Start a call with your contacts');
+    }
+
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.grey[400]! : Colors.black54;
+
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: _callLogs.length,
+      separatorBuilder: (context, index) =>
+          Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
+      itemBuilder: (context, index) {
+            final log = _callLogs[index];
+            final isOutgoing = _currentUserId != null && log.caller.id == _currentUserId;
+            final bool isMissed = ['missed', 'rejected', 'failed'].contains(log.status);
+            
+            final otherUser = isOutgoing ? log.receiver : log.caller;
+            
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: CircleAvatar(
+                radius: 28,
+                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                child: Text(
+                  otherUser.name.isNotEmpty ? otherUser.name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 22, 
+                    color: isDark ? Colors.white70 : Colors.grey[600], 
+                    fontWeight: FontWeight.bold
+                  ),
+                ),
+              ),
+              title: Text(
+                otherUser.name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600, 
+                  fontSize: 17, 
+                  color: isMissed ? Colors.redAccent : textColor
+                ),
+              ),
+              subtitle: Row(
+                children: [
+                  Icon(
+                    isOutgoing ? Icons.call_made : (isMissed ? Icons.call_missed : Icons.call_received),
+                    size: 16,
+                    color: isMissed ? Colors.redAccent : const Color(0xFF25D366),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    DateFormat('MMMM d, h:mm a').format(log.createdAt.toLocal()),
+                    style: TextStyle(color: subTextColor, fontSize: 14),
+                  ),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.call, color: Color(0xFF00A884)),
+                onPressed: () {
+                  CallOverlayManager.show(
+                    context,
+                    otherUser.name,
+                    '', // Avatar not available in call logs
+                    otherUser.id,
+                  );
+                },
+              ),
+              onTap: () {
+                // Show call details or recording if available
+              },
+            );
+          },
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color waTeal = const Color(0xFF00A884);
     final Color waGrey = isDark ? const Color(0xFF8696A0) : Colors.black54;
 
-    return DefaultTabController(
-      length: 2,
-      initialIndex: 0,
-      child: AdminLayout(
-        title: 'Chats',
-        currentIndex: 3,
-        onRefresh: _loadData,
-        bottom: TabBar(
-          indicatorColor: waTeal,
-          indicatorWeight: 3.5,
-          labelColor: isDark ? waTeal : Colors.white,
-          unselectedLabelColor: isDark ? waGrey : Colors.white70,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          tabs: const [
-            Tab(text: 'CHATS'),
-            // Tab(text: 'STATUS'),
-            Tab(text: 'CALLS'),
-          ],
-        ),
-        extraActions: [
-          IconButton(icon: Icon(Icons.camera_alt_outlined, color: isDark ? waGrey : Colors.white), onPressed: () {}),
-          IconButton(icon: Icon(Icons.search, color: isDark ? waGrey : Colors.white), onPressed: () => _showMessageDialog(context)),
-          IconButton(icon: Icon(Icons.more_vert, color: isDark ? waGrey : Colors.white), onPressed: () {}),
+    return AdminLayout(
+      title: 'Chats',
+      currentIndex: 3,
+      onRefresh: _loadData,
+      bottom: TabBar(
+        controller: _tabController,
+        indicatorColor: waTeal,
+        indicatorWeight: 3.5,
+        labelColor: isDark ? waTeal : Colors.white,
+        unselectedLabelColor: isDark ? waGrey : Colors.white70,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        tabs: const [
+          Tab(text: 'CHATS'),
+          Tab(text: 'CALLS'),
         ],
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _showMessageDialog(context),
-          backgroundColor: waTeal,
-          elevation: 4,
-          child: const Icon(Icons.message, color: Colors.white, size: 28),
+      ),
+      extraActions: [
+        IconButton(icon: Icon(Icons.camera_alt_outlined, color: isDark ? waGrey : Colors.white), onPressed: () {}),
+        IconButton(icon: Icon(Icons.search, color: isDark ? waGrey : Colors.white), onPressed: () => _showMessageDialog(context)),
+        IconButton(icon: Icon(Icons.more_vert, color: isDark ? waGrey : Colors.white), onPressed: () {}),
+      ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          if (_tabController.index == 0) {
+            _showMessageDialog(context);
+          } else {
+            _showCallDialog(context);
+          }
+        },
+        backgroundColor: waTeal,
+        elevation: 4,
+        child: Icon(
+          _tabController.index == 0 ? Icons.message : Icons.add_call,
+          color: Colors.white,
+          size: 28,
         ),
-        body: TabBarView(
-          children: [
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
             // Chats Tab
             _isLoading && _conversations.isEmpty && _groups.isEmpty
                 ? _buildSkeletonList()
@@ -413,12 +593,13 @@ class _ChatCallScreenState extends State<ChatCallScreen> {
             // Status Tab Placeholder
             // _buildPlaceholderTab(Icons.update, 'Status updates will appear here'),
             
-            // Calls Tab Placeholder
-            _buildPlaceholderTab(Icons.call_outlined, 'Start a call with your contacts'),
+            // Calls Tab
+            _isLoading && _callLogs.isEmpty
+                ? _buildSkeletonList()
+                : _buildCallList(),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildPlaceholderTab(IconData icon, String text) {

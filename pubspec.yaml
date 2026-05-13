@@ -67,6 +67,7 @@ dependencies:
   device_info_plus: ^12.4.0
   twilio_programmable_video: ^0.10.0
   shimmer: ^3.0.0
+  image_picker: ^1.2.2
 
 dev_dependencies:
   flutter_test:

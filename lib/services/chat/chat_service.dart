@@ -60,11 +60,14 @@ class ChatService {
     }
   }
 
-  Future<ChatMessageResponse> sendMessage(String conversationId, String content, String type) async {
+  Future<ChatMessageResponse> sendMessage(String conversationId, String content, String type, {bool isForwarded = false, String? replyTo, String? replyContent}) async {
     try {
       final response = await _dio.post('api/chat/conversations/$conversationId/messages', data: {
         'content': content,
         'type': type,
+        'isForwarded': isForwarded,
+        'replyTo': replyTo,
+        'replyContent': replyContent,
       });
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Wrap response data in a list to match expected Response model structure if it's a single message
@@ -116,6 +119,20 @@ class ChatService {
     } catch (e) {
       debugPrint('Error deleting message: $e');
       throw Exception('Failed to delete message');
+    }
+  }
+
+  Future<void> updateMessageReaction(String messageId, String? emoji) async {
+    try {
+      final response = await _dio.post('api/chat/messages/$messageId/reaction', data: {
+        'emoji': emoji,
+      });
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to update reaction');
+      }
+    } catch (e) {
+      debugPrint('Error updating reaction: $e');
+      throw Exception('Failed to update reaction');
     }
   }
 }

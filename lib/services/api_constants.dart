@@ -9,8 +9,8 @@ class ApiConstants {
   static const String socketUrl = 'https://test.yugsatya.com/';
 
 // Local Testing Endpoint
-  // static const String baseUrl = 'http://172.20.10.3:3000/';
-  // static const String socketUrl = 'http://172.20.10.3:3001/';
+  // static const String baseUrl = 'http://192.168.1.38:3000/';
+  // static const String socketUrl = 'http://192.168.1.38:3001/';
 
   static const String login = 'api/flutter/auth/login';
   static const String refresh = 'api/flutter/auth/refresh';

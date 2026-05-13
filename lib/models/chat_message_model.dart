@@ -37,6 +37,11 @@ class ChatMessage {
   final List<dynamic> deletedFor;
   final DateTime createdAt;
   final String? senderName;
+  final String? reaction;
+  final String? replyToContent;
+  final String? replyToSenderName;
+  final String? replyTo;
+  final bool isForwarded;
 
   ChatMessage({
     required this.id,
@@ -54,11 +59,21 @@ class ChatMessage {
     required this.deletedFor,
     required this.createdAt,
     this.senderName,
+    this.reaction,
+    this.replyToContent,
+    this.replyToSenderName,
+    this.replyTo,
+    this.isForwarded = false,
   });
 
   ChatMessage copyWith({
     bool? isRead,
     DateTime? readAt,
+    String? reaction,
+    String? replyToContent,
+    String? replyToSenderName,
+    String? replyTo,
+    bool? isForwarded,
   }) {
     return ChatMessage(
       id: id,
@@ -76,6 +91,11 @@ class ChatMessage {
       deletedFor: deletedFor,
       createdAt: createdAt,
       senderName: senderName,
+      reaction: reaction ?? this.reaction,
+      replyToContent: replyToContent ?? this.replyToContent,
+      replyToSenderName: replyToSenderName ?? this.replyToSenderName,
+      replyTo: replyTo ?? this.replyTo,
+      isForwarded: isForwarded ?? this.isForwarded,
     );
   }
 
@@ -98,6 +118,11 @@ class ChatMessage {
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
       senderName: json['senderName'],
+      reaction: json['reaction'],
+      replyToContent: json['replyToContent'] ?? json['reply_to_content'],
+      replyToSenderName: json['replyToSenderName'] ?? json['reply_to_sender_name'],
+      replyTo: json['replyTo'] ?? json['reply_to'],
+      isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
     );
   }
 }
