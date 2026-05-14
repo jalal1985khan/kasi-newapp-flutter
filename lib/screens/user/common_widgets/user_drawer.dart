@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/chat_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../providers/theme_provider.dart';
 import '../../login_screen.dart';
@@ -20,6 +21,7 @@ class _UserDrawerState extends State<UserDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final int unreadCount = context.watch<ChatProvider>().totalUnread;
     final AuthService authService = AuthService();
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     const Color waDarkBg = Color(0xFF111B21);
@@ -151,14 +153,23 @@ class _UserDrawerState extends State<UserDrawer> {
     required IconData icon,
     required String title,
     required Widget destination,
+    int unreadCount = 0,
   }) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    const Color waTeal = Color(0xFF00A884);
     return ListTile(
       leading: Icon(icon, color: isDark ? Colors.white70 : Colors.black54),
       title: Text(
         title,
         style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16),
       ),
+      trailing: (title == 'Chats and Calls' && unreadCount > 0)
+          ? Badge(
+              label: Text('$unreadCount'),
+              backgroundColor: waTeal,
+              child: const SizedBox.shrink(),
+            )
+          : null,
       onTap: () {
         Navigator.pop(context);
         Navigator.pushReplacement(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'providers/news_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/general_pages/splash_screen.dart';
 import 'screens/special_widgets/call_overlay.dart';
 import 'services/chat/socket_service.dart';
@@ -26,6 +27,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => NewsProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: const MyApp(),
     ),

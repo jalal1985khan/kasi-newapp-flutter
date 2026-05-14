@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/chat_provider.dart';
 import '../user_dashboard_screen.dart';
 import '../user_profile_screen.dart';
 import '../user_chat_call_screen.dart';
@@ -9,6 +11,7 @@ class UserBottomNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int unreadCount = context.watch<ChatProvider>().totalUnread;
     const Color waDarkBg = Color(0xFF111B21);
     const Color waTeal = Color(0xFF00A884);
     const Color waGrey = Color(0xFF8696A0);
@@ -75,16 +78,26 @@ class UserBottomNavigationBar extends StatelessWidget {
           ),
           BottomNavigationBarItem(
             icon: Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Icon(Icons.chat_bubble_outline),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Badge(
+                label: Text('$unreadCount'),
+                isLabelVisible: unreadCount > 0,
+                backgroundColor: waTeal,
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
             ),
             activeIcon: Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Icon(Icons.chat_bubble),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Badge(
+                label: Text('$unreadCount'),
+                isLabelVisible: unreadCount > 0,
+                backgroundColor: waTeal,
+                child: const Icon(Icons.chat_bubble),
+              ),
             ),
             label: 'Chats',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Padding(
               padding: EdgeInsets.only(bottom: 4),
               child: Icon(Icons.person_outline),

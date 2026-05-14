@@ -139,4 +139,16 @@ class ChatService {
       throw Exception('Failed to update reaction');
     }
   }
+  Future<int> getTotalUnreadCount() async {
+    try {
+      final response = await _dio.get('api/chat/unread-count');
+      if (response.data['success']) {
+        return response.data['totalUnread'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting total unread count: $e');
+      return 0;
+    }
+  }
 }

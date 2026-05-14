@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../dashboard_screen.dart';
 import '../bulk_user_add_screen.dart';
 import '../website_resourses_screen.dart';
 import '../employee_list_screen.dart';
 import '../chat_call_screen.dart';
+import '../../../providers/chat_provider.dart';
 
 class AdminBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -11,6 +13,7 @@ class AdminBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int unreadCount = context.watch<ChatProvider>().totalUnread;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color waDarkBg = const Color(0xFF111B21);
     final Color waTeal = const Color(0xFF00A884);
@@ -90,21 +93,38 @@ class AdminBottomNavBar extends StatelessWidget {
             label: 'Home',
           ),
           BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.upload_file_outlined)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.upload_file)),
             label: 'Excel',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.people_outline)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.people)),
             label: 'Users',
           ),
           BottomNavigationBarItem(
-            icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.chat_bubble_outline)),
-            activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.chat_bubble)),
+            icon: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Badge(
+                label: Text('$unreadCount'),
+                isLabelVisible: unreadCount > 0,
+                backgroundColor: waTeal,
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
+            ),
+            activeIcon: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Badge(
+                label: Text('$unreadCount'),
+                isLabelVisible: unreadCount > 0,
+                backgroundColor: waTeal,
+                child: const Icon(Icons.chat_bubble),
+              ),
+            ),
             label: 'Chats',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.web_outlined)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.web)),
             label: 'Web',
