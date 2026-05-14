@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
@@ -56,6 +57,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   String? _currentUserId;
   String? _activeConversationId;
   StreamSubscription? _socketSubscription;
+  ChatMessage? _replyingToMessage; // For Reply Feature
 
   @override
   void initState() {
@@ -258,7 +260,16 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       'receiverId': widget.otherUserId,
       'type': 'text',
       'content': text,
+      if (_replyingToMessage != null) ...{
+        'replyTo': _replyingToMessage!.id,
+        'replyToContent': _replyingToMessage!.content,
+        'replyToSenderName': _replyingToMessage!.senderId == _currentUserId ? 'Me' : widget.name,
+      }
     });
+
+    if (_replyingToMessage != null) {
+      setState(() => _replyingToMessage = null);
+    }
     setState(() {}); // Clear visibility
   }
 
@@ -439,6 +450,127 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     }
   }
 
+  void _showMessageOptions(ChatMessage message) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bgColor = isDark ? const Color(0xFF232D36) : Colors.white;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withOpacity(0.5),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 250,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                  ),
+                  child: Column(
+                    children: [
+                      _buildOptionItem(context, 'Reply', Icons.reply, () {
+                        Navigator.pop(context);
+                        setState(() => _replyingToMessage = message);
+                      }),
+                      _buildOptionItem(context, 'Copy', Icons.copy, () {
+                        Clipboard.setData(ClipboardData(text: message.content));
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Message copied to clipboard')),
+                        );
+                      }),
+                      if (message.senderId == _currentUserId)
+                        _buildOptionItem(context, 'Delete', Icons.delete_outline, () {
+                          Navigator.pop(context);
+                          _deleteMessage(message.id);
+                        }, isDestructive: true),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOptionItem(BuildContext context, String title, IconData icon, VoidCallback onTap, {bool isDestructive = false}) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDestructive ? Colors.redAccent : (isDark ? Colors.white : Colors.black87);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: textColor.withOpacity(0.7), size: 20),
+            const SizedBox(width: 16),
+            Text(title, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyPreview() {
+    if (_replyingToMessage == null) return const SizedBox();
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2C34) : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black.withOpacity(0.2) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 4)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _replyingToMessage!.senderId == _currentUserId ? 'Me' : widget.name,
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _replyingToMessage!.content,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: () => setState(() => _replyingToMessage = null),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color waDarkBg = Color(0xFF111B21);
@@ -612,9 +744,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                                 ),
                               ),
                             GestureDetector(
-                              onLongPress: isMe
-                                  ? () => _deleteMessage(msg.id)
-                                  : null,
+                              onLongPress: () => _showMessageOptions(msg),
                               child: _ChatBubble(message: msg, isMe: isMe),
                             ),
                           ],
@@ -622,6 +752,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                       },
                     ),
             ),
+            if (_replyingToMessage != null) _buildReplyPreview(),
             _buildMessageInput(),
           ],
         ),
@@ -950,6 +1081,7 @@ class _ChatBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (message.replyToContent != null) _buildReplySection(context),
             _buildMessageContent(context),
             const SizedBox(height: 4),
             Row(
@@ -1005,6 +1137,47 @@ class _ChatBubble extends StatelessWidget {
         ).showSnackBar(SnackBar(content: Text('Could not open file: $e')));
       }
     }
+  }
+
+
+  Widget _buildReplySection(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 3,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message.replyToSenderName ?? 'Unknown',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            message.replyToContent ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMessageContent(BuildContext context) {
