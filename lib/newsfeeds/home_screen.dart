@@ -36,8 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: isDark ? const Color(0xFF111B21) : Colors.grey[100],
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => context.read<NewsProvider>().refreshAll(),
@@ -53,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         'Daily News',
                         style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                            ?.copyWith(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
                       ),
                       const SizedBox(height: 12),
                       // ── SECTION 1: Search bar ─────────────
@@ -65,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: isDark ? const Color(0xFF202C33) : Colors.white,
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
@@ -118,6 +120,8 @@ class _Section2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Consumer<NewsProvider>(
       builder: (context, provider, _) {
         return Column(
@@ -146,7 +150,7 @@ class _Section2 extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Colors.white,
+                            : (isDark ? const Color(0xFF202C33) : Colors.white),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
@@ -161,13 +165,13 @@ class _Section2 extends StatelessWidget {
                           Icon(
                             cat['icon'] as IconData,
                             size: 16,
-                            color: isSelected ? Colors.white : Colors.black54,
+                            color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black54),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             '${cat['label']}',
                             style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.black87,
+                              color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black87),
                               fontWeight: isSelected
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -253,6 +257,7 @@ class _Section3 extends StatelessWidget {
                   'More Categories',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
                   ),
                 ),
               ),

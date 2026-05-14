@@ -47,6 +47,7 @@ class NewsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final oldNews = List<Article>.from(trendingNews);
       if (forceRefresh) await _cache.clearKey(AppConstants.prefsTrending);
 
       final cached = await _cache.loadArticles(AppConstants.prefsTrending);
@@ -58,6 +59,14 @@ class NewsProvider extends ChangeNotifier {
       }
 
       final fresh = await _service.fetchTrending();
+      
+      // If we did a force refresh and the newest article is the same, shuffle the results
+      if (forceRefresh && oldNews.isNotEmpty && fresh.isNotEmpty) {
+        if (oldNews.first.title == fresh.first.title) {
+          fresh.shuffle();
+        }
+      }
+      
       trendingNews = fresh;
       await _cache.saveArticles(AppConstants.prefsTrending, fresh);
       trendingState = LoadState.loaded;
@@ -80,6 +89,7 @@ class NewsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final oldCategoryNews = List<Article>.from(categoryNews[category] ?? []);
       final key = AppConstants.prefsCategory(category);
       if (forceRefresh) await _cache.clearKey(key);
 
@@ -92,6 +102,14 @@ class NewsProvider extends ChangeNotifier {
       }
 
       final fresh = await _service.fetchCategory(category);
+      
+      // If we did a force refresh and the newest article is the same, shuffle the results
+      if (forceRefresh && oldCategoryNews.isNotEmpty && fresh.isNotEmpty) {
+        if (oldCategoryNews.first.title == fresh.first.title) {
+          fresh.shuffle();
+        }
+      }
+
       categoryNews[category] = fresh;
       await _cache.saveArticles(key, fresh);
       categoryStates[category] = LoadState.loaded;

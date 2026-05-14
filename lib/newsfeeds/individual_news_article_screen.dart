@@ -120,7 +120,7 @@ class IndividualNewsArticleScreen extends StatelessWidget {
                     Text(
                       article.description!,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: Colors.black87,
+                        color: theme.brightness == Brightness.dark ? Colors.white : Colors.black87,
                         height: 1.5,
                         fontSize: 16,
                       ),
@@ -135,7 +135,7 @@ class IndividualNewsArticleScreen extends StatelessWidget {
                         '[+',
                       )[0], // Clean up content string if needed
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.black54,
+                        color: theme.brightness == Brightness.dark ? Colors.white70 : Colors.black54,
                         height: 1.6,
                       ),
                     ),
