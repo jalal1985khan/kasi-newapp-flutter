@@ -151,6 +151,17 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       }
     });
 
+    _socketService.on('message:update', (data) {
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == data['messageId']);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(content: data['content']);
+          }
+        });
+      }
+    });
+
     // Initial Status Check
     _socketService.emit('user:status', {'userId': widget.otherUserId});
 
@@ -1080,6 +1091,18 @@ class _ChatBubble extends StatelessWidget {
             ],
           ),
         );
+      case 'call':
+        if (message.content.startsWith('http')) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('📞 Call Recording:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(height: 4),
+              _AudioPlayerWidget(url: message.content, isMe: isMe),
+            ],
+          );
+        }
+        return Text(message.content, style: const TextStyle(fontSize: 16));
       default:
         return Text(message.content, style: const TextStyle(fontSize: 16));
     }
