@@ -988,3 +988,92 @@ class _GroupChatBubble extends StatelessWidget {
     }
   }
 }
+
+class _AudioPlayerWidget extends StatefulWidget {
+  final String url;
+  final bool isMe;
+  final int? initialDuration;
+  const _AudioPlayerWidget({required this.url, required this.isMe, this.initialDuration});
+
+  @override
+  State<_AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
+}
+
+class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialDuration != null) {
+      _duration = Duration(seconds: widget.initialDuration!);
+    }
+    _player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _isPlaying = state == PlayerState.playing);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          constraints: const BoxConstraints(),
+          padding: EdgeInsets.zero,
+          icon: Icon(
+            _isPlaying ? Icons.pause : Icons.play_arrow,
+            size: 24,
+            color: widget.isMe ? Colors.green[800] : Colors.blue,
+          ),
+          onPressed: () {
+            if (_isPlaying)
+              _player.pause();
+            else
+              _player.play(UrlSource(widget.url));
+          },
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 120,
+              child: LinearProgressIndicator(
+                value: _duration.inMilliseconds > 0
+                    ? _position.inMilliseconds / _duration.inMilliseconds
+                    : 0,
+                backgroundColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white10
+                    : Colors.black12,
+                valueColor: AlwaysStoppedAnimation(
+                  widget.isMe ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF25D366) : Colors.green[800]) : Colors.blue,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "${_position.inSeconds}s / ${_duration.inSeconds}s",
+              style: TextStyle(fontSize: 10, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.grey[700]),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
