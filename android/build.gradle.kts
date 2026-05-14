@@ -104,8 +104,8 @@ subprojects {
                 enabled = false
             }
 
-            // Force add flutter embedding dependency if missing
-            project.dependencies.add("implementation", "io.flutter:flutter_embedding_debug:1.0.0-42d3d75a56efe1a2e9902f52dc8006099c45d937")
+            // Use compileOnly to avoid duplicate class errors in release builds
+            project.dependencies.add("compileOnly", "io.flutter:flutter_embedding_debug:1.0.0-42d3d75a56efe1a2e9902f52dc8006099c45d937")
         }
     }
 }
