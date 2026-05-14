@@ -55,6 +55,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   bool _isOtherUserOnline = false; // New Presence State
   String? _currentUserId;
   String? _activeConversationId;
+  StreamSubscription? _socketSubscription;
 
   @override
   void initState() {
@@ -63,6 +64,12 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _activeConversationId = widget.conversationId;
     _loadData();
     _setupSocket();
+    _socketSubscription = _socketService.connectionStatus.listen((connected) {
+      if (connected && mounted && widget.otherUserId != null) {
+        debugPrint('📡 [User Indiv Chat] Socket reconnected, checking status...');
+        _socketService.emit('user:status', {'userId': widget.otherUserId});
+      }
+    });
   }
 
   @override
@@ -81,6 +88,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _audioRecorder.dispose();
+    _socketSubscription?.cancel();
     super.dispose();
   }
 

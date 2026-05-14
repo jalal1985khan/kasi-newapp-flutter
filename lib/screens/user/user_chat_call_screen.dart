@@ -9,6 +9,7 @@ import '../../models/chat_conversation_model.dart';
 import '../admin/group_chat_page.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'dart:async';
 
 class UserChatCallScreen extends StatefulWidget {
   const UserChatCallScreen({super.key});
@@ -27,13 +28,26 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> {
   bool _isLoading = true;
   String? _currentUserId;
   final Map<String, bool> _onlineStatuses = {};
+  StreamSubscription? _socketSubscription;
 
   @override
   void initState() {
     super.initState();
     _socketService.connect();
     _setupSocketListeners();
+    _socketSubscription = _socketService.connectionStatus.listen((connected) {
+      if (connected && mounted) {
+        debugPrint('📡 [User Chat] Socket reconnected, requesting online list...');
+        _socketService.emit('user:request_online_list', {});
+      }
+    });
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _socketSubscription?.cancel();
+    super.dispose();
   }
 
   void _setupSocketListeners() {

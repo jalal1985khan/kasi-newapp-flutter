@@ -63,6 +63,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
   bool _hasMore = true;
+  StreamSubscription? _socketSubscription;
 
   // New features
   bool _isRecording = false;
@@ -81,6 +82,12 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _activeConversationId = widget.conversationId;
     _loadData();
     _setupSocket();
+    _socketSubscription = _socketService.connectionStatus.listen((connected) {
+      if (connected && mounted && widget.receiverId != null) {
+        debugPrint('📡 [Individual Chat] Socket reconnected, checking status...');
+        _socketService.emit('user:status', {'userId': widget.receiverId});
+      }
+    });
     _scrollController.addListener(_scrollListener);
   }
 
@@ -109,6 +116,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _messageController.dispose();
     _audioRecorder.dispose();
     _scrollController.dispose();
+    _socketSubscription?.cancel();
     super.dispose();
   }
 

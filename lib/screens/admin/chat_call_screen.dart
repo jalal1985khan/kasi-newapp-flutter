@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'individual_chat_page.dart';
 import 'group_chat_page.dart';
@@ -32,6 +33,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   String? _currentUserId;
   final Map<String, bool> _onlineStatuses = {};
   late TabController _tabController;
+  StreamSubscription? _socketSubscription;
 
   @override
   void initState() {
@@ -42,12 +44,19 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     });
     _socketService.connect();
     _setupSocketListeners();
+    _socketSubscription = _socketService.connectionStatus.listen((connected) {
+      if (connected && mounted) {
+        debugPrint('📡 [Admin Chat] Socket reconnected, requesting online list...');
+        _socketService.emit('user:request_online_list', {});
+      }
+    });
     _loadData();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _socketSubscription?.cancel();
     super.dispose();
   }
 

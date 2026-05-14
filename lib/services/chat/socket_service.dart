@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../api_constants.dart';
 import '../auth_service.dart';
@@ -9,6 +10,9 @@ class SocketService {
 
   IO.Socket? socket;
   final AuthService _authService = AuthService();
+  final _connectionStatusController = StreamController<bool>.broadcast();
+  Stream<bool> get connectionStatus => _connectionStatusController.stream;
+  bool get isConnected => socket?.connected ?? false;
 
   Future<IO.Socket?> connect() async {
     if (socket != null && socket!.connected) return socket;
@@ -49,8 +53,14 @@ class SocketService {
       }
     });
 
-    socket!.onConnect((_) => print('Socket Connected to $socketUrl'));
-    socket!.onDisconnect((_) => print('Socket Disconnected'));
+    socket!.onConnect((_) {
+      print('Socket Connected to $socketUrl');
+      _connectionStatusController.add(true);
+    });
+    socket!.onDisconnect((_) {
+      print('Socket Disconnected');
+      _connectionStatusController.add(false);
+    });
 
     bool isRefreshing = false;
 
