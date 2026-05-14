@@ -41,28 +41,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     final user = await _authService.getUser();
     if (user != null) {
-      // User is logged in, connect socket
+      // User is logged in, connect socket in background
       SocketService().connect();
-      
-      final role = user['role'];
-      if (role == 'super_admin' || role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const UserDashboardScreen()),
-        );
-      }
-    } else {
-      // No user session, go to Home
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
     }
+
+    // Always go to News Home first
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+    );
   }
 
   //test

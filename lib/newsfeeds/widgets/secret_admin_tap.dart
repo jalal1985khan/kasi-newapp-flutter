@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../screens/login_screen.dart';
+import '../../services/auth_service.dart';
+import '../../screens/admin/dashboard_screen.dart';
+import '../../screens/user/user_dashboard_screen.dart';
 
 class SecretAdminTap extends StatefulWidget {
   const SecretAdminTap({super.key});
@@ -11,12 +14,12 @@ class SecretAdminTap extends StatefulWidget {
 class _SecretAdminTapState extends State<SecretAdminTap> {
   int _tapCount = 0;
   DateTime? _lastTapTime;
-  static const int _requiredTaps = 5; // Number of taps required
+  static const int _requiredTaps = 5;
+  final AuthService _authService = AuthService();
 
-  void _handleTap() {
+  void _handleTap() async {
     final now = DateTime.now();
 
-    // Reset if more than 2 seconds between taps
     if (_lastTapTime != null &&
         now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
       _tapCount = 0;
@@ -27,11 +30,30 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
 
     if (_tapCount >= _requiredTaps) {
       _tapCount = 0;
-      // Navigate to admin login
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+      
+      final user = await _authService.getUser();
+      if (!mounted) return;
+
+      if (user != null) {
+        final role = user['role'];
+        if (role == 'super_admin' || role == 'admin') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UserDashboardScreen()),
+          );
+        }
+      } else {
+        // Not logged in, go to login page
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
+      }
     }
   }
 
