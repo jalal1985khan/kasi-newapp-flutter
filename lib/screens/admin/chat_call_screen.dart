@@ -181,9 +181,33 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  itemCount: partners.length,
+                  itemCount: partners.length + 1,
                   itemBuilder: (context, index) {
-                    final partner = partners[index];
+                    if (index == 0) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Color(0xFF00A884),
+                              child: Icon(Icons.group_add, color: Colors.white),
+                            ),
+                            title: Text(
+                              'New Group',
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _showCreateGroupDialog(context);
+                            },
+                          ),
+                          Divider(color: isDark ? Colors.white10 : Colors.black12),
+                        ],
+                      );
+                    }
+                    final partner = partners[index - 1];
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
