@@ -47,9 +47,13 @@ class ChatService {
     }
   }
 
-  Future<ChatMessageResponse> getMessages(String conversationId) async {
+  Future<ChatMessageResponse> getMessages(String conversationId, {String? beforeId}) async {
     try {
-      final response = await _dio.get('api/chat/conversations/$conversationId/messages');
+      String url = 'api/chat/conversations/$conversationId/messages';
+      if (beforeId != null) {
+        url += '?before=$beforeId&limit=50';
+      }
+      final response = await _dio.get(url);
       if (response.statusCode == 200) {
         return ChatMessageResponse.fromJson(response.data);
       } else {

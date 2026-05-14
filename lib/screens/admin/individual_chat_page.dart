@@ -58,6 +58,11 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   Timer? _typingTimer;
   final Map<String, GlobalKey> _messageKeys = {};
   String? _highlightedMessageId;
+  
+  // Pagination
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
 
   // New features
   bool _isRecording = false;
@@ -76,6 +81,13 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _activeConversationId = widget.conversationId;
     _loadData();
     _setupSocket();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoadingMore && _hasMore) {
+      _loadMoreMessages();
+    }
   }
 
   void _setupSocket() {
@@ -96,6 +108,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _recordTimer?.cancel();
     _messageController.dispose();
     _audioRecorder.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -259,6 +272,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         if (mounted) {
           setState(() {
             _messages = response.messages.reversed.toList();
+            _hasMore = response.hasMore ?? false;
             _isLoading = false;
           });
         }
@@ -277,6 +291,30 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadMoreMessages() async {
+    if (_activeConversationId == null || _messages.isEmpty || !_hasMore) return;
+    
+    setState(() => _isLoadingMore = true);
+    
+    try {
+      final String oldestMessageId = _messages.last.id;
+      final response = await _chatService.getMessages(_activeConversationId!, beforeId: oldestMessageId);
+      
+      if (mounted) {
+        setState(() {
+          _messages.addAll(response.messages.reversed.toList());
+          _hasMore = response.hasMore ?? false;
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+        debugPrint('Error loading more messages: $e');
       }
     }
   }
@@ -714,10 +752,17 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                     : RefreshIndicator(
                       onRefresh: _loadData,
                       child: ListView.builder(
+                        controller: _scrollController,
                         padding: const EdgeInsets.all(10),
                         reverse: true,
-                        itemCount: _messages.length,
+                        itemCount: _messages.length + (_hasMore ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index == _messages.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(child: CircularProgressIndicator(color: waTeal)),
+                            );
+                          }
                           final msg = _messages[index];
                           final isMe = msg.senderId == _currentUserId;
                           bool showDateSeparator = false;
@@ -1290,7 +1335,15 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                             Navigator.pop(context);
                             final convId = await _chatService.startConversation(partner['_id'] ?? partner['id']);
                             if (convId != null) {
-                              await _chatService.sendMessage(convId, message.content, message.type, isForwarded: true);
+                              _socketService.emit('message:send', {
+                                'conversationId': convId,
+                                'receiverId': partner['_id'] ?? partner['id'],
+                                'content': message.content,
+                                'type': message.type,
+                                'isForwarded': true,
+                                'replyToContent': message.replyToContent,
+                                'replyToSenderName': message.replyToSenderName,
+                              });
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(

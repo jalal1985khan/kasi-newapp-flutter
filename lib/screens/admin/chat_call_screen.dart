@@ -561,11 +561,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
           Tab(text: 'CALLS'),
         ],
       ),
-      extraActions: [
-        IconButton(icon: Icon(Icons.camera_alt_outlined, color: isDark ? waGrey : Colors.white), onPressed: () {}),
-        IconButton(icon: Icon(Icons.search, color: isDark ? waGrey : Colors.white), onPressed: () => _showMessageDialog(context)),
-        IconButton(icon: Icon(Icons.more_vert, color: isDark ? waGrey : Colors.white), onPressed: () {}),
-      ],
+      extraActions: const [],
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_tabController.index == 0) {
