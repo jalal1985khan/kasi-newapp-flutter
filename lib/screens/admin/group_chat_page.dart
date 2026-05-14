@@ -932,15 +932,7 @@ class _GroupChatBubble extends StatelessWidget {
           ),
         );
       case 'audio':
-        // For simple bubble, show player or icon
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.play_circle_fill, color: Colors.blue),
-            const SizedBox(width: 8),
-            const Text('Voice Note', style: TextStyle(color: Colors.blue)),
-          ],
-        );
+        return _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
       case 'document':
       case 'file':
       case 'video':

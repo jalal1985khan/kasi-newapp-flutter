@@ -1910,7 +1910,7 @@ class _ChatBubble extends StatelessWidget {
           ),
         );
       case 'audio':
-        return _AudioPlayerWidget(url: message.content, isMe: isMe);
+        return _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
       case 'document':
       case 'file':
       case 'video':
@@ -1970,7 +1970,8 @@ class _ChatBubble extends StatelessWidget {
 class _AudioPlayerWidget extends StatefulWidget {
   final String url;
   final bool isMe;
-  const _AudioPlayerWidget({required this.url, required this.isMe});
+  final int? initialDuration;
+  const _AudioPlayerWidget({required this.url, required this.isMe, this.initialDuration});
 
   @override
   State<_AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
@@ -1985,6 +1986,9 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDuration != null) {
+      _duration = Duration(seconds: widget.initialDuration!);
+    }
     _player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _isPlaying = state == PlayerState.playing);
     });

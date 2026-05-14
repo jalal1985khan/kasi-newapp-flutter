@@ -593,7 +593,13 @@ class IncomingCallOverlayManager {
         onDismiss: hide,
       ),
     );
-    overlay.insert(_entry!);
+    
+    // Ensure insertion happens after current frame to avoid "setState() or markNeedsBuild() called during build" crashes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_entry != null) {
+        overlay.insert(_entry!);
+      }
+    });
   }
 
   static void hide() {
