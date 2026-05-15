@@ -14,14 +14,16 @@ class CacheService {
   }
 
   // Load articles from cache; returns null if expired or missing
-  Future<List<Article>?> loadArticles(String key) async {
+  Future<List<Article>?> loadArticles(String key, {bool ignoreExpiration = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final ts = prefs.getInt('${key}_ts');
     if (ts == null) return null;
 
-    final age = DateTime.now().millisecondsSinceEpoch - ts;
-    final ttlMs = AppConstants.cacheTtlMinutes * 60 * 1000;
-    if (age > ttlMs) return null; // Cache expired
+    if (!ignoreExpiration) {
+      final age = DateTime.now().millisecondsSinceEpoch - ts;
+      final ttlMs = AppConstants.cacheTtlMinutes * 60 * 1000;
+      if (age > ttlMs) return null; // Cache expired
+    }
 
     final raw = prefs.getString(key);
     if (raw == null) return null;

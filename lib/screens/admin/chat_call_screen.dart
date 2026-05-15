@@ -179,92 +179,80 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               ),
               Divider(color: isDark ? Colors.white10 : Colors.black12),
               Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: partners.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Column(
-                        children: [
-                          ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: Color(0xFF00A884),
-                              child: Icon(Icons.group_add, color: Colors.white),
-                            ),
-                            title: Text(
-                              'New Group',
-                              style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showCreateGroupDialog(context);
-                            },
-                          ),
-                          Divider(color: isDark ? Colors.white10 : Colors.black12),
-                        ],
-                      );
-                    }
-                    final partner = partners[index - 1];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                        child: Text(
-                          partner['name'][0].toUpperCase(),
-                          style: const TextStyle(color: Color(0xFF1A73E8)),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFF00A884),
+                        child: Icon(Icons.group_add, color: Colors.white),
+                      ),
+                      title: Text(
+                        'New Group',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      title: Text(partner['name'], style: TextStyle(color: textColor)),
-                      subtitle: Text(
-                        partner['role']
-                            .toString()
-                            .replaceAll('_', ' ')
-                            .toUpperCase(),
-                        style: TextStyle(fontSize: 12, color: subTextColor),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showCreateGroupDialog(context);
+                      },
+                    ),
+                    Divider(color: isDark ? Colors.white10 : Colors.black12),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: partners.length,
+                        itemBuilder: (context, index) {
+                          final partner = partners[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
+                              child: Text(
+                                partner['name'][0].toUpperCase(),
+                                style: const TextStyle(color: Color(0xFF1A73E8)),
+                              ),
+                            ),
+                            title: Text(partner['name'], style: TextStyle(color: textColor)),
+                            subtitle: Text(
+                              partner['role']
+                                  .toString()
+                                  .replaceAll('_', ' ')
+                                  .toUpperCase(),
+                              style: TextStyle(fontSize: 12, color: subTextColor),
+                            ),
+                            onTap: () async {
+                              try {
+                                final convId = await _chatService.startConversation(
+                                  partner['_id'],
+                                );
+                                if (convId != null && mounted) {
+                                  Navigator.pop(context);
+                                  _onRefresh();
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => IndividualChatPage(
+                                        name: partner['name'],
+                                        avatar: '',
+                                        conversationId: convId,
+                                        receiverId: partner['_id'],
+                                      ),
+                                    ),
+                                  );
+                                  if (mounted) _loadData(silent: true);
+                                }
+                              } catch (e) {
+                                debugPrint('Error starting chat: $e');
+                              }
+                            },
+                          );
+                        },
                       ),
-                    onTap: () async {
-                      // Show loading or just keep the sheet open while starting
-                      try {
-                        final convId = await _chatService.startConversation(
-                          partner['_id'],
-                        );
-                        if (convId != null && mounted) {
-                          Navigator.pop(context); // Now safe to pop
-                          _onRefresh(); // Refresh list background
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => IndividualChatPage(
-                                name: partner['name'],
-                                avatar: '',
-                                conversationId: convId,
-                                receiverId: partner['_id'],
-                              ),
-                            ),
-                          );
-                          if (mounted) _loadData(silent: true);
-                        } else if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Failed to start conversation. Please try again.',
-                              ),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error starting chat: $e')),
-                          );
-                      }
-                    },
-                  );
-                },
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),

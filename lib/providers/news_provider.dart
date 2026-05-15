@@ -33,10 +33,21 @@ class NewsProvider extends ChangeNotifier {
   // INITIALISE — called once at app start
   // ─────────────────────────────────────────────────────────
   Future<void> initialLoad() async {
+    // 1. Load Trending and Selected Category first
     await Future.wait([
       loadTrending(),
-      ...AppConstants.categories.map((c) => loadCategory(c['key']!)),
+      loadCategory(selectedCategory),
     ]);
+
+    // 2. Load other categories in the background sequentially to avoid 429 rate limit
+    for (var cat in AppConstants.categories) {
+      if (cat['key'] != selectedCategory) {
+        // We don't 'await' here to allow background loading, 
+        // OR we can await to be safe and sequential.
+        // Let's await to be safe against concurrent limits.
+        await loadCategory(cat['key']!);
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -71,8 +82,15 @@ class NewsProvider extends ChangeNotifier {
       await _cache.saveArticles(AppConstants.prefsTrending, fresh);
       trendingState = LoadState.loaded;
     } catch (e) {
-      trendingState = LoadState.error;
-      errorMessage = e.toString();
+      // Fallback to stale cache if API fails
+      final stale = await _cache.loadArticles(AppConstants.prefsTrending, ignoreExpiration: true);
+      if (stale != null && stale.isNotEmpty) {
+        trendingNews = stale;
+        trendingState = LoadState.loaded;
+      } else {
+        trendingState = LoadState.error;
+        errorMessage = e.toString();
+      }
     }
 
     notifyListeners();
@@ -114,8 +132,15 @@ class NewsProvider extends ChangeNotifier {
       await _cache.saveArticles(key, fresh);
       categoryStates[category] = LoadState.loaded;
     } catch (e) {
-      categoryStates[category] = LoadState.error;
-      errorMessage = e.toString();
+      // Fallback to stale cache if API fails
+      final stale = await _cache.loadArticles(key, ignoreExpiration: true);
+      if (stale != null && stale.isNotEmpty) {
+        categoryNews[category] = stale;
+        categoryStates[category] = LoadState.loaded;
+      } else {
+        categoryStates[category] = LoadState.error;
+        errorMessage = e.toString();
+      }
     }
 
     notifyListeners();
@@ -148,8 +173,15 @@ class NewsProvider extends ChangeNotifier {
       await _cache.saveArticles(cacheKey, fresh);
       searchState = LoadState.loaded;
     } catch (e) {
-      searchState = LoadState.error;
-      errorMessage = e.toString();
+      // Fallback to stale cache if API fails
+      final stale = await _cache.loadArticles(cacheKey, ignoreExpiration: true);
+      if (stale != null && stale.isNotEmpty) {
+        searchResults = stale;
+        searchState = LoadState.loaded;
+      } else {
+        searchState = LoadState.error;
+        errorMessage = e.toString();
+      }
     }
 
     notifyListeners();
