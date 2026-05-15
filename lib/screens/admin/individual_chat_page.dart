@@ -21,6 +21,8 @@ import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:path/path.dart' as p;
+import 'attachment_preview_screen.dart';
 
 class IndividualChatPage extends StatefulWidget {
   final String name;
@@ -46,6 +48,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   final AuthService _authService = AuthService();
   final SocketService _socketService = SocketService();
   final AudioRecorder _audioRecorder = AudioRecorder();
+  final FocusNode _focusNode = FocusNode();
 
   List<ChatMessage> _messages = [];
   bool _isLoading = true;
@@ -117,6 +120,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _audioRecorder.dispose();
     _scrollController.dispose();
     _socketSubscription?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -262,6 +266,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
               replyToContent: message.replyToContent ?? _messages[tempIndex].replyToContent,
               replyToSenderName: message.replyToSenderName ?? _messages[tempIndex].replyToSenderName,
               isForwarded: message.isForwarded || _messages[tempIndex].isForwarded,
+              caption: message.caption ?? _messages[tempIndex].caption,
             );
             debugPrint('⚡ Temp message replaced with real ID: ${message.id}');
           } else {
@@ -338,7 +343,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     }
   }
 
-  void _sendMessage({String type = 'text', String? content}) async {
+  void _sendMessage({String type = 'text', String? content, String? caption, String? fileName}) async {
     final text = content ?? _messageController.text.trim();
     if (text.isEmpty && type == 'text') return;
 
@@ -366,7 +371,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         id: tempId,
         conversationId: _activeConversationId ?? '',
         senderId: _currentUserId ?? '',
-        receiverId: widget.receiverId!,
+        receiverId: widget.receiverId ?? '',
         content: text,
         type: type,
         isRead: false,
@@ -374,6 +379,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         createdAt: DateTime.now(),
         replyToContent: replyToContent,
         replyToSenderName: replyToSenderName,
+        caption: caption,
+        fileName: fileName,
       );
 
       setState(() {
@@ -398,6 +405,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           'replyToContent': replyToContent,
           'replyToSenderName': replyToSenderName,
           'isForwarded': false,
+          'caption': caption,
+          'fileName': fileName,
         });
       } catch (e) {
         // Handle failure: remove optimistic message
@@ -555,45 +564,45 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
 
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.any,
-      allowMultiple: true, // Enable multiple files
+      allowMultiple: true,
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      final total = result.paths.length;
-      int current = 0;
+      final List<String> paths = result.paths.whereType<String>().toList();
+      
+      if (!mounted) return;
+      final previewResult = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AttachmentPreviewScreen(filePaths: paths, userName: widget.name),
+        ),
+      );
 
-      setState(() => _isLoading = true);
-      try {
-        for (final path in result.paths) {
-          if (path == null) continue;
-          current++;
-
+      if (previewResult != null && previewResult is List) {
+        setState(() => _isLoading = true);
+        try {
+          for (final item in previewResult) {
+            final path = item['path'];
+            final caption = item['caption'];
+            if (path == null) continue;
+            
+            final uploadRes = await _chatService.uploadMedia(path);
+            if (uploadRes['success'] == true) {
+              _sendMessage(
+                type: uploadRes['type'] ?? 'document', 
+                content: uploadRes['url'],
+                caption: caption,
+                fileName: p.basename(path),
+              );
+            }
+          }
+        } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Uploading file $current of $total...'),
-                duration: const Duration(milliseconds: 1500),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
           }
-
-          final uploadRes = await _chatService.uploadMedia(path);
-          if (uploadRes['success'] == true) {
-            _sendMessage(
-              type: uploadRes['type'] ?? 'document',
-              content: uploadRes['url'],
-            );
-          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -644,7 +653,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: const Color(0xFF202C33),
+                  backgroundColor: isDark ? const Color(0xFF202C33) : Colors.white24,
                   child: widget.avatar.isNotEmpty
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(20),
@@ -653,7 +662,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                         )
                       : Text(
                           widget.name[0].toUpperCase(),
-                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black45),
+                          style: const TextStyle(color: Colors.white70),
                         ),
                 ),
                 if (_isOtherUserOnline)
@@ -666,7 +675,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF25D366),
                         shape: BoxShape.circle,
-                        border: Border.all(color: waDarkBg, width: 2),
+                        border: Border.all(color: isDark ? const Color(0xFF202C33) : waTeal, width: 2),
                       ),
                     ),
                   ),
@@ -722,33 +731,6 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
               );
             }
           },
-        ),
-        PopupMenuButton<String>(
-          iconColor: Colors.white,
-          onSelected: (value) {
-            if (value == 'clear') {
-              _clearChat();
-            } else if (value == 'delete') {
-              _deleteChat();
-            }
-          },
-          itemBuilder: (context) {
-            final bool isDarkPopup = Theme.of(context).brightness == Brightness.dark;
-            final Color popupBg = isDarkPopup ? const Color(0xFF202C33) : Colors.white;
-            final Color popupText = isDarkPopup ? Colors.white : Colors.black87;
-            
-            return [
-              PopupMenuItem(
-                value: 'clear',
-                child: Text('Clear chat', style: TextStyle(color: popupText)),
-              ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete chat', style: const TextStyle(color: Colors.red)),
-              ),
-            ];
-          },
-          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF202C33) : Colors.white,
         ),
       ],
       body: Stack(
@@ -1098,7 +1080,14 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                               Expanded(
                                 child: TextField(
                                   controller: _messageController,
+                                  focusNode: _focusNode,
+                                  autofocus: false,
                                   style: TextStyle(color: textColor),
+                                  onTap: () {
+                                    if (!_focusNode.hasFocus) {
+                                      _focusNode.requestFocus();
+                                    }
+                                  },
                                   onChanged: (val) {
                                     setState(() {});
                                     if (val.isNotEmpty) {
@@ -1915,9 +1904,10 @@ class _ChatBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent(BuildContext context, Color textColor) {
+    Widget media;
     switch (message.type) {
       case 'image':
-        return Container(
+        media = Container(
           constraints: const BoxConstraints(maxHeight: 200, maxWidth: 200),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -1928,8 +1918,10 @@ class _ChatBubble extends StatelessWidget {
             ),
           ),
         );
+        break;
       case 'audio':
-        return _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        media = _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        break;
       case 'document':
       case 'file':
       case 'video':
@@ -1954,7 +1946,7 @@ class _ChatBubble extends StatelessWidget {
           }
         }
 
-        return GestureDetector(
+        media = GestureDetector(
           onTap: () => _openFile(
             context,
             message.content,
@@ -1980,9 +1972,10 @@ class _ChatBubble extends StatelessWidget {
             ],
           ),
         );
+        break;
       case 'call':
         if (message.content.startsWith('http')) {
-          return Column(
+          media = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('📞 Call Recording:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.6))),
@@ -1990,11 +1983,25 @@ class _ChatBubble extends StatelessWidget {
               _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration),
             ],
           );
+        } else {
+          media = Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
         }
-        return Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
+        break;
       default:
-        return Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
+        media = Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
     }
+
+    if (message.caption != null && message.caption!.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          media,
+          const SizedBox(height: 6),
+          Text(message.caption!, style: TextStyle(color: textColor, fontSize: 14)),
+        ],
+      );
+    }
+    return media;
   }
 }
 

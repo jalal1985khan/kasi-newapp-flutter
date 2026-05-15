@@ -9,6 +9,7 @@ import 'screens/special_widgets/call_overlay.dart';
 import 'services/chat/socket_service.dart';
 import 'services/auth_service.dart';
 import 'services/fcm_service.dart';
+import 'utils/premium_widgets.dart';
 
 /// Global navigator key — lets SocketService show call UI from anywhere.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -92,6 +93,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Daily News',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: PremiumScrollBehavior(),
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -100,6 +102,8 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.grey[100],
+        splashColor: Colors.black.withOpacity(0.05),
+        highlightColor: Colors.transparent,
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -108,6 +112,8 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF111B21),
+        splashColor: Colors.white.withOpacity(0.05),
+        highlightColor: Colors.transparent,
       ),
       home: const SplashScreen(),
       navigatorKey: navigatorKey,

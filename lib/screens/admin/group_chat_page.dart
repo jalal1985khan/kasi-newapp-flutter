@@ -450,33 +450,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
           }
         },
       ),
-      PopupMenuButton<String>(
-        iconColor: Colors.white,
-        onSelected: (value) {
-          if (value == 'clear') {
-            _clearChat();
-          } else if (value == 'delete') {
-            _deleteGroup();
-          }
-        },
-        itemBuilder: (context) {
-          final bool isDarkPopup = Theme.of(context).brightness == Brightness.dark;
-          final Color popupText = isDarkPopup ? Colors.white : Colors.black87;
-          
-          return [
-            PopupMenuItem(
-              value: 'clear',
-              child: Text('Clear chat', style: TextStyle(color: popupText)),
-            ),
-            if (widget.isAdmin)
-              PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete group', style: const TextStyle(color: Colors.red)),
-              ),
-          ];
-        },
-        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF202C33) : Colors.white,
-      ),
     ];
   }
 

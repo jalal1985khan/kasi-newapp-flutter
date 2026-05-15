@@ -4,6 +4,8 @@ import '../../../providers/chat_provider.dart';
 import '../user_dashboard_screen.dart';
 import '../user_profile_screen.dart';
 import '../user_chat_call_screen.dart';
+import '../../../utils/premium_widgets.dart';
+import 'package:flutter/services.dart';
 
 class UserBottomNavigationBar extends StatelessWidget {
   final int currentIndex;
@@ -16,53 +18,46 @@ class UserBottomNavigationBar extends StatelessWidget {
     const Color waTeal = Color(0xFF00A884);
     const Color waGrey = Color(0xFF8696A0);
 
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
+          top: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), width: 0.5),
         ),
       ),
       child: BottomNavigationBar(
         currentIndex: currentIndex == -1 ? 0 : currentIndex,
         type: BottomNavigationBarType.fixed,
-        backgroundColor: waDarkBg,
+        backgroundColor: isDark ? waDarkBg : Colors.white,
         selectedItemColor: currentIndex == -1 ? waGrey : waTeal,
-        unselectedItemColor: waGrey,
+        unselectedItemColor: isDark ? waGrey : Colors.black54,
         selectedFontSize: 12,
         unselectedFontSize: 12,
         iconSize: 26,
         onTap: (index) {
           if (index == currentIndex) return;
+          HapticFeedback.lightImpact();
 
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const UserDashboardScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 1:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const UserChatCallScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 2:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const UserProfileScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-          }
+          final List<Widget> pages = [
+            const UserDashboardScreen(),
+            const UserChatCallScreen(),
+            const UserProfileScreen(),
+          ];
+
+          Navigator.pushReplacement(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => pages[index],
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 300),
+            ),
+          );
         },
         items: [
           const BottomNavigationBarItem(

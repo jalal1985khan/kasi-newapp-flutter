@@ -8,6 +8,8 @@ import '../user_dashboard_screen.dart';
 import '../user_profile_screen.dart';
 import '../user_chat_call_screen.dart';
 import '../../../newsfeeds/home_screen.dart';
+import '../../../utils/premium_widgets.dart';
+import 'package:flutter/services.dart';
 
 class UserDrawer extends StatefulWidget {
   const UserDrawer({super.key});
@@ -39,22 +41,22 @@ class _UserDrawerState extends State<UserDrawer> {
               return UserAccountsDrawerHeader(
                 accountName: Text(
                   user?['name'] ?? 'User',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 accountEmail: Text(
                   user?['email'] ?? 'user@mail.com',
-                  style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
                 ),
                 currentAccountPicture: CircleAvatar(
-                  backgroundColor: waTeal,
+                  backgroundColor: isDark ? waTeal : Colors.white,
                   child: Text(
                     user?['name'] != null && user!['name'].toString().isNotEmpty
                         ? user['name'].toString()[0].toUpperCase()
                         : 'U',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: isDark ? Colors.white : waTeal,
                     ),
                   ),
                 ),
@@ -157,26 +159,35 @@ class _UserDrawerState extends State<UserDrawer> {
   }) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     const Color waTeal = Color(0xFF00A884);
-    return ListTile(
-      leading: Icon(icon, color: isDark ? Colors.white70 : Colors.black54),
-      title: Text(
-        title,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16),
-      ),
-      trailing: (title == 'Chats and Calls' && unreadCount > 0)
-          ? Badge(
-              label: Text('$unreadCount'),
-              backgroundColor: waTeal,
-              child: const SizedBox.shrink(),
-            )
-          : null,
+    return SoftTouchWrapper(
       onTap: () {
+        HapticFeedback.lightImpact();
         Navigator.pop(context);
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => destination),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => destination,
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 300),
+          ),
         );
       },
+      child: ListTile(
+        leading: Icon(icon, color: isDark ? Colors.white70 : Colors.black54),
+        title: Text(
+          title,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16),
+        ),
+        trailing: (title == 'Chats and Calls' && unreadCount > 0)
+            ? Badge(
+                label: Text('$unreadCount'),
+                backgroundColor: waTeal,
+                child: const SizedBox.shrink(),
+              )
+            : null,
+      ),
     );
   }
 }

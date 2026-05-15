@@ -42,6 +42,7 @@ class ChatMessage {
   final String? replyToSenderName;
   final String? replyTo;
   final bool isForwarded;
+  final String? caption;
 
   ChatMessage({
     required this.id,
@@ -64,6 +65,7 @@ class ChatMessage {
     this.replyToSenderName,
     this.replyTo,
     this.isForwarded = false,
+    this.caption,
   });
 
   ChatMessage copyWith({
@@ -87,6 +89,7 @@ class ChatMessage {
     String? replyToSenderName,
     String? replyTo,
     bool? isForwarded,
+    String? caption,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -109,6 +112,7 @@ class ChatMessage {
       replyToSenderName: replyToSenderName ?? this.replyToSenderName,
       replyTo: replyTo ?? this.replyTo,
       isForwarded: isForwarded ?? this.isForwarded,
+      caption: caption ?? this.caption,
     );
   }
 
@@ -136,6 +140,7 @@ class ChatMessage {
       replyToSenderName: json['replyToSenderName'] ?? json['reply_to_sender_name'],
       replyTo: json['replyTo'] ?? json['reply_to'],
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
+      caption: json['caption'],
     );
   }
 }

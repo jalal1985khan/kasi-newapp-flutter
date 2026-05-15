@@ -55,7 +55,7 @@ class UserLayout extends StatelessWidget {
                 letterSpacing: 0.5,
               ),
             ),
-        backgroundColor: backgroundColor ?? appBarBg,
+        backgroundColor: appBarBg,
         elevation: 0.5,
         shadowColor: Colors.black.withOpacity(0.3),
         foregroundColor: foregroundColor ?? Colors.white,

@@ -855,13 +855,31 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
 
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: CircleAvatar(
-            radius: 28,
-            backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-            child: Text(
-              otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
-            ),
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
+                child: Text(
+                  otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
+                  style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (isOnline)
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25D366),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111B21) : Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
           ),
           title: Text(
             otherParticipant.name,

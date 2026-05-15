@@ -9,6 +9,8 @@ import 'common_widgets/user_layout.dart';
 import '../../services/employee/employee_service.dart';
 import '../../models/employee_me_response.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../utils/premium_widgets.dart';
 
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({super.key});
@@ -19,20 +21,90 @@ class UserDashboardScreen extends StatefulWidget {
 
 class _UserDashboardScreenState extends State<UserDashboardScreen> {
   final EmployeeService _employeeService = EmployeeService();
-  late Future<EmployeeMeResponse> _employeeFuture = _employeeService.getEmployeeMe();
+  final ScrollController _scrollController = ScrollController();
+  
+  User? _user;
+  List<EmployeeData> _records = [];
+  double _totalCredits = 0;
+  double _totalDebits = 0;
+  double _totalValue = 0;
+  
+  bool _isLoading = true;
+  bool _isFetchingMore = false;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  final int _limit = 10;
+
   bool _isDownloading = false;
   final Map<int, GlobalKey> _recordKeys = {};
 
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isFetchingMore && _hasMore) {
+        _loadMoreData();
+      }
+    }
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+      _currentPage = 1;
+      _records = [];
+      _hasMore = true;
+    });
+    
+    try {
+      final response = await _employeeService.getEmployeeMe(page: _currentPage, limit: _limit);
+      if (mounted) {
+        setState(() {
+          _user = response.user;
+          _records = response.records;
+          _totalCredits = response.totalCredits;
+          _totalDebits = response.totalDebits;
+          _totalValue = response.totalValue;
+          _isLoading = false;
+          _hasMore = response.records.length == _limit;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMoreData() async {
+    setState(() => _isFetchingMore = true);
+    _currentPage++;
+    
+    try {
+      final response = await _employeeService.getEmployeeMe(page: _currentPage, limit: _limit);
+      if (mounted) {
+        setState(() {
+          _records.addAll(response.records);
+          _isFetchingMore = false;
+          _hasMore = response.records.length == _limit;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isFetchingMore = false);
+    }
   }
 
   Future<void> _onRefresh() async {
-    setState(() {
-      _employeeFuture = _employeeService.getEmployeeMe();
-    });
-    await _employeeFuture;
+    await _loadInitialData();
   }
 
   Future<void> _captureAndSaveRecord(int index, User user) async {
@@ -124,236 +196,115 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black54;
+    final Color cardColor = isDark ? const Color(0xFF1B272E) : Colors.white;
+    const Color waTeal = Color(0xFF00A884);
+
     return UserLayout(
       title: 'Dashboard',
       currentIndex: 0,
       onRefresh: _onRefresh,
-      body: FutureBuilder<EmployeeMeResponse>(
-        future: _employeeFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
-          }
-
-          if (snapshot.hasError) {
-            return _buildErrorState(snapshot.error.toString());
-          }
-
-          final user = snapshot.data?.user;
-          final records = snapshot.data?.records ?? [];
-          final tCredits = snapshot.data?.totalCredits ?? 0;
-          final tDebits = snapshot.data?.totalDebits ?? 0;
-          final tValue = snapshot.data?.totalValue ?? 0;
-
-          if (user == null) {
-            return const Center(child: Text('User profile not found', style: TextStyle(color: Colors.white)));
-          }
-
-          final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
-
-          return RefreshIndicator(
-            onRefresh: _onRefresh,
-            color: const Color(0xFF00A884),
-            backgroundColor: const Color(0xFF202C33),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildUserHeader(user),
-                  const SizedBox(height: 16),
+      body: _isLoading 
+          ? _buildShimmerLoading(isDark)
+          : RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: waTeal,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_user != null) _buildPremiumHeader(_user!),
+                          const SizedBox(height: 20),
+                          _buildFinancialSummary(cardColor, subTextColor),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader('Batch Records', textColor),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  ),
                   
-                  // Financial Summary row
-                  Row(
-                    children: [
-                      _buildSummaryCard('Credits', cur.format(tCredits), const Color(0xFF25D366), Icons.arrow_downward),
-                      const SizedBox(width: 8),
-                      _buildSummaryCard('Debits', cur.format(tDebits), Colors.orange, Icons.arrow_upward),
-                      const SizedBox(width: 8),
-                      _buildSummaryCard('Value', cur.format(tValue), Colors.blue, Icons.account_balance_wallet),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-                  _buildSectionHeader(
-                    records.length > 1 
-                      ? 'Batch Records (${records.length} items)' 
-                      : 'Latest Batch Details'
-                  ),
-                  const SizedBox(height: 16),
-                  if (records.isEmpty) 
-                    Center(child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 40.0),
-                      child: Text('No data found in your latest batch', style: TextStyle(color: Colors.white.withOpacity(0.5))),
-                    ))
+                  if (_records.isEmpty)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Text('No records found', style: TextStyle(color: subTextColor)),
+                      ),
+                    )
                   else
-                    ...List.generate(records.length, (idx) {
-                      final record = records[idx];
-                      _recordKeys[idx] ??= GlobalKey();
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF202C33),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
-                        ),
-                        child: Theme(
-                          data: Theme.of(context).copyWith(
-                            dividerColor: Colors.transparent,
-                            unselectedWidgetColor: Colors.white54,
-                            colorScheme: const ColorScheme.dark(primary: Color(0xFF00A884)),
-                          ),
-                          child: ExpansionTile(
-                            leading: CircleAvatar(
-                              backgroundColor: (record.credits > 0) ? const Color(0xFF25D366).withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                              child: Icon(
-                                (record.credits > 0) ? Icons.add : Icons.remove,
-                                color: (record.credits > 0) ? const Color(0xFF25D366) : Colors.orange,
-                                size: 18,
-                              ),
-                            ),
-                            title: Text(
-                              record.accountName ?? 'Record #${idx + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                            ),
-                            subtitle: Text(
-                              '${DateFormat('dd MMM').format(DateTime.parse(record.updatedAt))} • ${record.transactionStatus ?? "Processed"}',
-                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
-                            ),
-                            trailing: IconButton(
-                              icon: _isDownloading 
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00A884)))
-                                : const Icon(Icons.download_rounded, size: 20, color: Color(0xFF00A884)),
-                              onPressed: _isDownloading ? null : () => _captureAndSaveRecord(idx, user),
-                            ),
-                            childrenPadding: const EdgeInsets.all(0),
-                            children: [
-                              RepaintBoundary(
-                                key: _recordKeys[idx],
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  color: const Color(0xFF202C33),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text('SNAPSHOT RECEIPT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF00A884), letterSpacing: 1.5)),
-                                      const SizedBox(height: 12),
-                                      _receiptRow('Transaction ID', record.id.length > 8 ? record.id.substring(record.id.length - 8).toUpperCase() : record.id),
-                                      _receiptRow('Type (C2)', record.transactionType ?? 'N/A'),
-                                      _receiptRow('Account (C4)', record.accountName ?? 'N/A'),
-                                      Divider(height: 24, color: Colors.white.withOpacity(0.05)),
-                                      Row(
-                                        children: [
-                                          Expanded(child: _receiptStat('CREDITS (C5)', cur.format(record.credits), const Color(0xFF25D366))),
-                                          Expanded(child: _receiptStat('DEBITS (C9)', cur.format(record.impact), Colors.orange)),
-                                          Expanded(child: _receiptStat('TOTAL (C8)', cur.format(record.totalValue), Colors.blue)),
-                                        ],
-                                      ),
-                                      Divider(height: 24, color: Colors.white.withOpacity(0.05)),
-                                      _receiptRow('Units (C6)', record.units?.toString() ?? '0'),
-                                      _receiptRow('Billable Units (C7)', record.billableUnits?.toString() ?? '0'),
-                                      _receiptRow('Status (C10)', record.transactionStatus ?? 'Processed'),
-                                      
-                                      if (record.data.isNotEmpty) ...[
-                                        const SizedBox(height: 16),
-                                        Text('ADDITIONAL DATA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.4))),
-                                        const SizedBox(height: 8),
-                                        ...record.data.entries.take(5).map((e) => _receiptRow(e.key, e.value.toString())),
-                                      ],
-                                      Divider(height: 24, color: Colors.white.withOpacity(0.05)),
-                                      Center(child: Text('Downloaded: ${DateFormat('dd/MM/yy HH:mm').format(DateTime.now())}', style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.3)))),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 100),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index == _records.length) {
+                            return _isFetchingMore 
+                                ? const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 20),
+                                    child: Center(child: CircularProgressIndicator(color: waTeal)),
+                                  )
+                                : const SizedBox(height: 100);
+                          }
+                          
+                          final record = _records[index];
+                          _recordKeys[index] ??= GlobalKey();
+                          return _buildPremiumRecordCard(record, index, isDark, cardColor, textColor, subTextColor, _recordKeys[index]!);
+                        },
+                        childCount: _records.length + 1,
+                      ),
+                    ),
                 ],
               ),
             ),
-          );
-        },
-      ),
     );
   }
 
-  Widget _buildSummaryCard(String label, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF202C33),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.1)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 8),
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.5), fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            FittedBox(child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _receiptRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.white)),
-        ],
-      ),
-    );
-  }
-
-  Widget _receiptStat(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(fontSize: 8, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.bold)),
-        const SizedBox(height: 2),
-        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
-      ],
-    );
-  }
-
-  Widget _buildUserHeader(User user) {
+  Widget _buildPremiumHeader(User user) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF00A884), Color(0xFF008C6F)],
+          colors: [Color(0xFF00A884), Color(0xFF056162)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00A884).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.white.withOpacity(0.2),
-            child: Text(user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: Colors.white.withOpacity(0.9),
+              child: Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                style: const TextStyle(color: Color(0xFF00A884), fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('Employee ID: ${user.employeeId ?? "N/A"}', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
+                Text(user.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                const SizedBox(height: 4),
+                Text('Employee ID: ${user.employeeId ?? "N/A"}', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -362,31 +313,277 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white));
+  Widget _buildFinancialSummary(Color cardColor, Color subTextColor) {
+    final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+    
+    return Row(
+      children: [
+        _buildSummaryCard('Credits', cur.format(_totalCredits), const Color(0xFF25D366), Icons.arrow_downward, cardColor, subTextColor),
+        const SizedBox(width: 12),
+        _buildSummaryCard('Debits', cur.format(_totalDebits), Colors.orange, Icons.arrow_upward, cardColor, subTextColor),
+        const SizedBox(width: 12),
+        _buildSummaryCard('Value', cur.format(_totalValue), Colors.blue, Icons.account_balance_wallet, cardColor, subTextColor),
+      ],
+    );
   }
 
-  Widget _buildErrorState(String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+  Widget _buildSummaryCard(String label, String value, Color color, IconData icon, Color cardColor, Color subTextColor) {
+    return Expanded(
+      child: SoftTouchWrapper(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.15)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 12),
+              Text(label, style: TextStyle(fontSize: 12, color: subTextColor, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              FittedBox(child: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumRecordCard(EmployeeData record, int index, bool isDark, Color cardColor, Color textColor, Color subTextColor, GlobalKey recordKey) {
+    return _PremiumRecordCard(
+      record: record,
+      index: index,
+      isDark: isDark,
+      cardColor: cardColor,
+      textColor: textColor,
+      subTextColor: subTextColor,
+      user: _user!,
+      onDownload: _captureAndSaveRecord,
+      recordKey: recordKey,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color textColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 0.5)),
+        if (_records.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            child: Text('${_records.length} items', style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildShimmerLoading(bool isDark) {
+    return Shimmer.fromColors(
+      baseColor: isDark ? const Color(0xFF202C33) : const Color(0xFFE0E0E0),
+      highlightColor: isDark ? const Color(0xFF2C3943) : const Color(0xFFF5F5F5),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 60),
-            const SizedBox(height: 16),
-            const Text('Oops!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 8),
-            Text(error, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.6))),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _onRefresh,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A884)),
-              child: const Text('Retry'),
+            Container(height: 120, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24))),
+            const SizedBox(height: 20),
+            Row(
+              children: List.generate(3, (index) => Expanded(
+                child: Container(margin: EdgeInsets.only(right: index == 2 ? 0 : 12), height: 100, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
+              )),
             ),
+            const SizedBox(height: 40),
+            ...List.generate(5, (index) => Container(margin: const EdgeInsets.only(bottom: 16), height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PremiumRecordCard extends StatefulWidget {
+  final EmployeeData record;
+  final int index;
+  final bool isDark;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+  final User user;
+  final Function(int, User) onDownload;
+  final GlobalKey recordKey;
+
+  const _PremiumRecordCard({
+    required this.record,
+    required this.index,
+    required this.isDark,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+    required this.user,
+    required this.onDownload,
+    required this.recordKey,
+  });
+
+  @override
+  State<_PremiumRecordCard> createState() => _PremiumRecordCardState();
+}
+
+class _PremiumRecordCardState extends State<_PremiumRecordCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+    const Color waTeal = Color(0xFF00A884);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: widget.cardColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+          ],
+          border: Border.all(color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: ExpansionTile(
+            backgroundColor: Colors.transparent,
+            collapsedBackgroundColor: Colors.transparent,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            onExpansionChanged: (expanded) {
+              setState(() {
+                _isExpanded = expanded;
+              });
+            },
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: (widget.record.credits > 0 ? const Color(0xFF25D366) : Colors.orange).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.record.credits > 0 ? Icons.add_rounded : Icons.remove_rounded,
+                color: widget.record.credits > 0 ? const Color(0xFF25D366) : Colors.orange,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              widget.record.accountName ?? 'Record #${widget.index + 1}',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: widget.textColor),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '${DateFormat('dd MMM').format(DateTime.parse(widget.record.updatedAt))} • ${widget.record.transactionStatus ?? "Processed"}',
+                style: TextStyle(color: widget.subTextColor, fontSize: 13),
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  cur.format(widget.record.credits > 0 ? widget.record.credits : widget.record.impact),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: widget.record.credits > 0 ? const Color(0xFF25D366) : Colors.orange,
+                    fontSize: 15,
+                  ),
+                ),
+                if (_isExpanded) ...[
+                  const SizedBox(width: 8),
+                  SoftTouchWrapper(
+                    onTap: () => widget.onDownload(widget.index, widget.user),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: waTeal.withOpacity(0.1), shape: BoxShape.circle),
+                      child: const Icon(Icons.download_rounded, size: 20, color: waTeal),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            children: [
+              RepaintBoundary(
+                key: widget.recordKey,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  color: widget.isDark ? const Color(0xFF162127) : Colors.grey[50],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('DETAILS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: waTeal, letterSpacing: 1.2)),
+                          Text(DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(widget.record.updatedAt)), style: TextStyle(fontSize: 10, color: widget.subTextColor)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _receiptRow('Transaction ID', widget.record.id.toUpperCase(), widget.textColor, widget.subTextColor),
+                      _receiptRow('Type', widget.record.transactionType ?? 'N/A', widget.textColor, widget.subTextColor),
+                      _receiptRow('Status', widget.record.transactionStatus ?? 'Processed', widget.textColor, widget.subTextColor),
+                      const Divider(height: 32),
+                      Row(
+                        children: [
+                          Expanded(child: _receiptStat('CREDITS', cur.format(widget.record.credits), const Color(0xFF25D366), widget.subTextColor)),
+                          Expanded(child: _receiptStat('DEBITS', cur.format(widget.record.impact), Colors.orange, widget.subTextColor)),
+                          Expanded(child: _receiptStat('TOTAL', cur.format(widget.record.totalValue), Colors.blue, widget.subTextColor)),
+                        ],
+                      ),
+                      if (widget.record.data.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        const Text('ADDITIONAL INFO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: waTeal, letterSpacing: 1)),
+                        const SizedBox(height: 12),
+                        ...widget.record.data.entries.take(5).map((e) => _receiptRow(e.key, e.value.toString(), widget.textColor, widget.subTextColor)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value, Color textColor, Color subTextColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: textColor)),
+        ],
+      ),
+    );
+  }
+
+  Widget _receiptStat(String label, String value, Color color, Color subTextColor) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: subTextColor, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        const SizedBox(height: 6),
+        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+      ],
     );
   }
 }

@@ -11,7 +11,6 @@ class CallLogService {
   static Future<List<CallLog>?> getAdminCallLogs({int page = 1}) async {
     try {
       final token = await _authService.getAccessToken();
-      
       if (token == null) return null;
 
       final response = await _dio.get(
@@ -19,16 +18,34 @@ class CallLogService {
         queryParameters: {'page': page},
       );
 
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['success'] == true) {
-          final List logsJson = data['logs'] ?? [];
-          return logsJson.map((l) => CallLog.fromJson(l)).toList();
-        }
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final List logsJson = response.data['logs'] ?? [];
+        return logsJson.map((l) => CallLog.fromJson(l)).toList();
       }
       return null;
     } catch (e) {
       print('[CallLogService] Error: $e');
+      return null;
+    }
+  }
+
+  static Future<List<CallLog>?> getUserCallLogs({int page = 1}) async {
+    try {
+      final token = await _authService.getAccessToken();
+      if (token == null) return null;
+
+      final response = await _dio.get(
+        ApiConstants.callHistory,
+        queryParameters: {'page': page},
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final List logsJson = response.data['logs'] ?? [];
+        return logsJson.map((l) => CallLog.fromJson(l)).toList();
+      }
+      return null;
+    } catch (e) {
+      print('[CallLogService] User Call History Error: $e');
       return null;
     }
   }
