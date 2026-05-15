@@ -50,98 +50,144 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     bool isSubmitting = false;
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(builder: (context, setModalState) {
-          return AlertDialog(
-            backgroundColor: modalBg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text('Change Password', style: TextStyle(color: textColor)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSettingsTextField(_oldPasswordController, 'Old Password', true, isDark, textColor),
-                  const SizedBox(height: 16),
-                  _buildSettingsTextField(_newPasswordController, 'New Password', true, isDark, textColor),
-                  const SizedBox(height: 16),
-                  _buildSettingsTextField(_confirmPasswordController, 'Confirm New Password', true, isDark, textColor),
-                ],
-              ),
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              left: 20,
+              right: 20,
+              top: 20,
             ),
-            actions: [
-              TextButton(
-                onPressed: isSubmitting ? null : () => Navigator.pop(context),
-                child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
-              ),
-              ElevatedButton(
-                onPressed: isSubmitting
-                    ? null
-                    : () async {
-                        final oldPass = _oldPasswordController.text.trim();
-                        final newPass = _newPasswordController.text.trim();
-                        final confPass = _confirmPasswordController.text.trim();
+            decoration: BoxDecoration(
+              color: modalBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Change Password',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Update your account security by choosing a new password.',
+                  style: TextStyle(color: subTextColor, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                _buildSettingsTextField(_oldPasswordController, 'Current Password', true, isDark, textColor),
+                const SizedBox(height: 16),
+                _buildSettingsTextField(_newPasswordController, 'New Password', true, isDark, textColor),
+                const SizedBox(height: 16),
+                _buildSettingsTextField(_confirmPasswordController, 'Confirm New Password', true, isDark, textColor),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final oldPass = _oldPasswordController.text.trim();
+                            final newPass = _newPasswordController.text.trim();
+                            final confPass = _confirmPasswordController.text.trim();
 
-                        if (oldPass.isEmpty || newPass.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please fill all fields')),
-                          );
-                          return;
-                        }
+                            if (oldPass.isEmpty || newPass.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please fill all fields')),
+                              );
+                              return;
+                            }
 
-                        if (newPass != confPass) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Passwords do not match')),
-                          );
-                          return;
-                        }
+                            if (newPass != confPass) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Passwords do not match')),
+                              );
+                              return;
+                            }
 
-                        if (newPass.length < 8) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('New password must be at least 8 characters')),
-                          );
-                          return;
-                        }
+                            if (newPass.length < 8) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('New password must be at least 8 characters')),
+                              );
+                              return;
+                            }
 
-                        setModalState(() => isSubmitting = true);
-                        final result = await AuthService().changePassword(
-                          oldPassword: oldPass,
-                          newPassword: newPass,
-                        );
+                            setModalState(() => isSubmitting = true);
+                            final result = await AuthService().changePassword(
+                              oldPassword: oldPass,
+                              newPassword: newPass,
+                            );
 
-                        if (!mounted) return;
-                        setModalState(() => isSubmitting = false);
+                            if (!mounted) return;
+                            setModalState(() => isSubmitting = false);
 
-                        if (result['success'] == true) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(result['message'] ?? 'Password changed successfully'),
-                              backgroundColor: const Color(0xFF25D366),
-                            ),
-                          );
-                          _oldPasswordController.clear();
-                          _newPasswordController.clear();
-                          _confirmPasswordController.clear();
-                          Navigator.pop(context);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(result['message'] ?? 'Failed to change password'),
-                              backgroundColor: Colors.redAccent,
-                            ),
-                          );
-                        }
-                      },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A884), foregroundColor: Colors.white),
-                child: isSubmitting
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Submit'),
-              ),
-            ],
+                            if (result['success'] == true) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(result['message'] ?? 'Password changed successfully'),
+                                  backgroundColor: const Color(0xFF25D366),
+                                ),
+                              );
+                              _oldPasswordController.clear();
+                              _newPasswordController.clear();
+                              _confirmPasswordController.clear();
+                              Navigator.pop(context);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(result['message'] ?? 'Failed to change password'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00A884),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Update Password', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancel', style: TextStyle(color: subTextColor)),
+                  ),
+                ),
+              ],
+            ),
           );
         });
       },
@@ -153,128 +199,263 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     final emailCtrl = TextEditingController(text: _user?.email ?? '');
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: modalBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Edit Details', style: TextStyle(color: textColor)),
-          content: Column(
+        return Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          decoration: BoxDecoration(
+            color: modalBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSettingsTextField(nameCtrl, 'Name', false, isDark, textColor),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white12 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Edit Profile',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Keep your profile information up to date.',
+                style: TextStyle(color: subTextColor, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              _buildSettingsTextField(nameCtrl, 'Full Name', false, isDark, textColor),
               const SizedBox(height: 16),
-              _buildSettingsTextField(emailCtrl, 'Email (Disabled)', false, isDark, textColor, enabled: false),
+              _buildSettingsTextField(emailCtrl, 'Email Address (System Only)', false, isDark, textColor, enabled: false),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Future API integration
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00A884),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Discard Changes', style: TextStyle(color: subTextColor)),
+                ),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Future API integration
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A884), foregroundColor: Colors.white),
-              child: const Text('Save Changes'),
-            ),
-          ],
         );
       },
     );
   }
 
   Widget _buildSettingsTextField(TextEditingController controller, String label, bool obscure, bool isDark, Color textColor, {bool enabled = true}) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      enabled: enabled,
-      style: TextStyle(color: textColor),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: textColor.withOpacity(0.6)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: textColor.withOpacity(0.6),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        filled: !enabled,
-        fillColor: enabled ? Colors.transparent : textColor.withOpacity(0.05),
-      ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          obscureText: obscure,
+          enabled: enabled,
+          style: TextStyle(color: textColor, fontSize: 16),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: isDark ? (enabled ? const Color(0xFF202C33) : Colors.white.withOpacity(0.05)) : (enabled ? Colors.grey[50] : Colors.grey[100]),
+            hintStyle: TextStyle(color: textColor.withOpacity(0.3)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF00A884), width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color cardBg = isDark ? const Color(0xFF111B21) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
+    final Color subTextColor = isDark ? Colors.white.withOpacity(0.6) : Colors.black54;
 
     return AdminLayout(
       title: 'Settings',
-      currentIndex: 3,
+      currentIndex: 4, // Settings is usually index 4
       onRefresh: _onRefresh,
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
+            // ── PROFILE HEADER ──────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 40),
               decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: textColor.withOpacity(0.05)),
-                boxShadow: [
-                  if (!isDark)
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                ],
+                color: isDark ? const Color(0xFF111B21) : Colors.white,
+                border: Border(bottom: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
               ),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Stack(
                     children: [
-                      Text(
-                        'Profile Details',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF00A884), width: 2),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
+                          child: Text(
+                            _user?.name.isNotEmpty == true ? _user!.name[0].toUpperCase() : '?',
+                            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
+                          ),
+                        ),
                       ),
-                      IconButton(
-                        onPressed: _showEditDetailsDialog,
-                        icon: const Icon(Icons.edit_note_outlined, color: Color(0xFF00A884)),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: _showEditDetailsDialog,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(color: Color(0xFF00A884), shape: BoxShape.circle),
+                            child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  Divider(color: isDark ? Colors.white10 : Colors.black12),
-                  _buildDetailRow('Name', _user?.name ?? 'Loading...', textColor, subTextColor),
-                  _buildDetailRow('Mail ID', _user?.email ?? 'Loading...', textColor, subTextColor),
-                  _buildDetailRow('Username', _user?.username ?? 'Loading...', textColor, subTextColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    _user?.name ?? 'Loading...',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _user?.email ?? '...',
+                    style: TextStyle(fontSize: 14, color: subTextColor),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00A884).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'ACTIVE ACCOUNT',
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF00A884), letterSpacing: 1),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: textColor.withOpacity(0.05)),
-                boxShadow: [
-                  if (!isDark)
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+
+            // ── DETAILS SECTION ─────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ACCOUNT INFORMATION',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSectionCard(
+                    isDark,
+                    [
+                      _buildDetailRow('Display Name', _user?.name ?? '...', textColor, subTextColor, Icons.person_outline),
+                      _buildDetailRow('Email ID', _user?.email ?? '...', textColor, subTextColor, Icons.mail_outline),
+                      _buildDetailRow('Username', _user?.username ?? '...', textColor, subTextColor, Icons.alternate_email),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  Text(
+                    'SECURITY',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSectionCard(
+                    isDark,
+                    [
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        leading: const Icon(Icons.lock_reset_rounded, color: Color(0xFF00A884)),
+                        title: Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600, color: textColor)),
+                        subtitle: Text('Regularly update for better security', style: TextStyle(fontSize: 12, color: subTextColor)),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                        onTap: _showChangePasswordDialog,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 40),
+                  Center(
+                    child: Text(
+                      'App Version 2.4.0',
+                      style: TextStyle(fontSize: 12, color: subTextColor.withOpacity(0.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                 ],
-              ),
-              child: ListTile(
-                leading: const Icon(Icons.lock_outline, color: Color(0xFF00A884)),
-                title: Text('Change Password', style: TextStyle(color: textColor)),
-                trailing: Icon(Icons.arrow_forward_ios, size: 16, color: subTextColor.withOpacity(0.5)),
-                onTap: _showChangePasswordDialog,
               ),
             ),
           ],
@@ -283,22 +464,49 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, Color textColor, Color subTextColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(color: subTextColor, fontWeight: FontWeight.w500),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+  Widget _buildSectionCard(bool isDark, List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF202C33) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
+        ],
+      ),
+      child: Column(
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, Color textColor, Color subTextColor, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: textColor.withOpacity(0.05))),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF00A884)),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(color: subTextColor, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textColor),
+              ),
+            ],
           ),
         ],
       ),
