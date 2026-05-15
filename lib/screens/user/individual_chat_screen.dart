@@ -175,9 +175,10 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     });
 
     _socketService.on('message:deleted', (data) {
+      debugPrint('🗑️ Socket: message:deleted received: ${data['messageId']}');
       if (mounted) {
         setState(() {
-          _messages.removeWhere((m) => m.id == data['messageId']);
+          _messages.removeWhere((m) => m.id.toString() == data['messageId'].toString());
         });
       }
     });

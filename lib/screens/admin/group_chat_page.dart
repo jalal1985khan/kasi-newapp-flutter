@@ -108,6 +108,27 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     });
 
+    socket.on('group:message:deleted', (data) {
+      debugPrint('🗑️ Socket: group:message:deleted received: ${data['messageId']}');
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((m) => m.id.toString() == data['messageId'].toString());
+        });
+      }
+    });
+
+    socket.on('group:message:edited', (data) {
+      debugPrint('✏️ Socket: group:message:edited received: ${data['messageId']}');
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id.toString() == data['messageId'].toString());
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(content: data['newContent']);
+          }
+        });
+      }
+    });
+
     // Handle being added to new groups or group deletions if needed
   }
 
