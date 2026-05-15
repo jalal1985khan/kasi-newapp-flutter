@@ -134,13 +134,15 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     });
 
     _socketService.on('user:online', (data) {
-      if (data['userId'] == widget.otherUserId && mounted) {
+      debugPrint('🟢 Socket: user:online received for ${data['userId']}');
+      if (data['userId'].toString() == widget.otherUserId.toString() && mounted) {
         setState(() => _isOtherUserOnline = true);
       }
     });
 
     _socketService.on('user:offline', (data) {
-      if (data['userId'] == widget.otherUserId && mounted) {
+      debugPrint('🔴 Socket: user:offline received for ${data['userId']}');
+      if (data['userId'].toString() == widget.otherUserId.toString() && mounted) {
         setState(() => _isOtherUserOnline = false);
       }
     });

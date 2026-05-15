@@ -150,8 +150,16 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     });
 
     _socketService.on('user:offline', (data) {
-      if (data['userId'] == widget.receiverId && mounted) {
+      debugPrint('🔴 Socket: user:offline received for ${data['userId']}');
+      if (data['userId'].toString() == widget.receiverId.toString() && mounted) {
         setState(() => _isOtherUserOnline = false);
+      }
+    });
+
+    _socketService.on('user:online', (data) {
+      debugPrint('🟢 Socket: user:online received for ${data['userId']}');
+      if (data['userId'].toString() == widget.receiverId.toString() && mounted) {
+        setState(() => _isOtherUserOnline = true);
       }
     });
 
