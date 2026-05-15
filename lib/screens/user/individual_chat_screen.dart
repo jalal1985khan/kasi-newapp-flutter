@@ -196,6 +196,9 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _socketService.emit('user:status', {'userId': widget.otherUserId});
 
     if (_activeConversationId != null) {
+      _socketService.emit('chat:join', {
+        'conversationId': _activeConversationId,
+      });
       _socketService.emit('message:read', {
         'conversationId': _activeConversationId,
       });
@@ -219,7 +222,10 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
 
       if (isMatch) {
         setState(() {
-          _activeConversationId ??= message.conversationId;
+          if (_activeConversationId == null) {
+            _activeConversationId = message.conversationId;
+            _socketService.emit('chat:join', {'conversationId': _activeConversationId});
+          }
 
           final int tempIndex = _messages.indexWhere((m) {
             final incomingTempId = data['tempId'];

@@ -210,6 +210,9 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
 
     // Mark existing messages as read
     if (_activeConversationId != null) {
+      _socketService.emit('chat:join', {
+        'conversationId': _activeConversationId,
+      });
       _socketService.emit('message:read', {
         'conversationId': _activeConversationId,
       });
@@ -243,6 +246,9 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         setState(() {
           if (_activeConversationId == null) {
             _activeConversationId = message.conversationId;
+            _socketService.emit('chat:join', {
+              'conversationId': _activeConversationId,
+            });
             debugPrint('🎯 Conv ID Anchored: $_activeConversationId');
           }
 
