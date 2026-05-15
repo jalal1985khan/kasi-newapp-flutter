@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/chat_provider.dart';
 import '../dashboard_screen.dart';
 import '../bulk_user_add_screen.dart';
 import '../website_resourses_screen.dart';
 import '../employee_list_screen.dart';
 import '../chat_call_screen.dart';
-import '../../../providers/chat_provider.dart';
 
 class AdminBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -15,8 +15,8 @@ class AdminBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final int unreadCount = context.watch<ChatProvider>().totalUnread;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color waDarkBg = const Color(0xFF111B21);
-    final Color waTeal = const Color(0xFF00A884);
+    const Color waDarkBg = Color(0xFF111B21);
+    const Color waTeal = Color(0xFF00A884);
     final Color waGrey = isDark ? const Color(0xFF8696A0) : Colors.black54;
     final Color navBg = isDark ? waDarkBg : Colors.white;
 
@@ -86,13 +86,12 @@ class AdminBottomNavBar extends StatelessWidget {
               break;
           }
         },
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.dashboard_outlined)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.dashboard)),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
           const BottomNavigationBarItem(
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.upload_file_outlined)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.upload_file)),

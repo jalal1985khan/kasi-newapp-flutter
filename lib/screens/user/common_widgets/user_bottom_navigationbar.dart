@@ -64,8 +64,8 @@ class UserBottomNavigationBar extends StatelessWidget {
               break;
           }
         },
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Padding(
               padding: EdgeInsets.only(bottom: 4),
               child: Icon(Icons.dashboard_outlined),
