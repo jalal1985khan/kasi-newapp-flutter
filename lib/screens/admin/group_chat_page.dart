@@ -132,10 +132,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
       });
 
       setState(() {
+        final int tempIndex = _messages.indexWhere((m) {
+          final incomingTempId = data['tempId'];
+          if (incomingTempId != null && m.id == incomingTempId) return true;
+          return m.id.startsWith('temp_') && 
+                 m.content == message.content && 
+                 m.senderId == message.senderId &&
+                 m.type == message.type;
+        });
+
         final int existingIndex = _messages.indexWhere(
           (m) => m.id == message.id,
         );
-        if (existingIndex == -1) {
+        
+        if (existingIndex != -1) {
+          // Ignore duplicate
+        } else if (tempIndex != -1) {
+          _messages[tempIndex] = message.copyWith(
+            caption: message.caption ?? _messages[tempIndex].caption,
+          );
+        } else {
           _messages.insert(0, message);
         }
       });
@@ -186,6 +202,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       'groupId': widget.groupId,
       'content': text,
       'type': type,
+      'caption': content != null ? null : null, // This function is simplified, but I'll add the keys anyway
+      'tempId': 'temp_${DateTime.now().millisecondsSinceEpoch}',
     });
   }
 
@@ -895,17 +913,20 @@ class _GroupChatBubble extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context, Color textColor) {
+    Widget contentWidget;
     switch (message.type) {
       case 'image':
-        return ClipRRect(
+        contentWidget = ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Image.network(
             message.content,
             errorBuilder: (c, e, s) => const Icon(Icons.broken_image),
           ),
         );
+        break;
       case 'audio':
-        return _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        contentWidget = _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        break;
       case 'document':
       case 'file':
       case 'video':
@@ -930,7 +951,7 @@ class _GroupChatBubble extends StatelessWidget {
           }
         }
 
-        return GestureDetector(
+        contentWidget = GestureDetector(
           onTap: () => _openFile(
             context,
             message.content,
@@ -956,9 +977,22 @@ class _GroupChatBubble extends StatelessWidget {
             ],
           ),
         );
+        break;
       default:
-        return Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
+        contentWidget = Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
     }
+
+    if (message.caption != null && message.caption!.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          contentWidget,
+          const SizedBox(height: 6),
+          Text(message.caption!, style: TextStyle(color: textColor, fontSize: 14)),
+        ],
+      );
+    }
+    return contentWidget;
   }
 }
 

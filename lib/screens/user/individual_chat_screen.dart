@@ -221,9 +221,14 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
         setState(() {
           _activeConversationId ??= message.conversationId;
 
-          final int tempIndex = _messages.indexWhere(
-            (m) => m.id.startsWith('temp_') && m.content == message.content && m.senderId == message.senderId
-          );
+          final int tempIndex = _messages.indexWhere((m) {
+            final incomingTempId = data['tempId'];
+            if (incomingTempId != null && m.id == incomingTempId) return true;
+            return m.id.startsWith('temp_') && 
+                   m.content == message.content && 
+                   m.senderId == message.senderId &&
+                   m.type == message.type;
+          });
 
           final int existingIndex = _messages.indexWhere((m) => m.id == message.id);
 
@@ -371,6 +376,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
         'isForwarded': false,
         'caption': caption,
         'fileName': fileName,
+        'tempId': tempId,
       });
     } catch (e) {
       if (existingTempId == null) {

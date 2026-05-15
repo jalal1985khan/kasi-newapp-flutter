@@ -247,9 +247,17 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           }
 
           // 1. Check if this is a confirmation of an optimistic (temp) message
-          final int tempIndex = _messages.indexWhere(
-            (m) => m.id.startsWith('temp_') && m.content == message.content && m.senderId == message.senderId
-          );
+          final int tempIndex = _messages.indexWhere((m) {
+            // First try matching by tempId echoed from server
+            final incomingTempId = data['tempId'];
+            if (incomingTempId != null && m.id == incomingTempId) return true;
+            
+            // Fallback to content matching for standard text messages
+            return m.id.startsWith('temp_') && 
+                   m.content == message.content && 
+                   m.senderId == message.senderId &&
+                   m.type == message.type;
+          });
 
           // 2. Check if this message ID already exists (real message)
           final int existingIndex = _messages.indexWhere(
@@ -343,9 +351,18 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     }
   }
 
-  void _sendMessage({String type = 'text', String? content, String? caption, String? fileName}) async {
+  void _sendMessage({
+    String type = 'text', 
+    String? content, 
+    String? caption, 
+    String? fileName,
+    String? localPath,
+    MessageUploadStatus uploadStatus = MessageUploadStatus.success,
+    double uploadProgress = 1.0,
+    String? existingTempId,
+  }) async {
     final text = content ?? _messageController.text.trim();
-    if (text.isEmpty && type == 'text') return;
+    if (text.isEmpty && type == 'text' && localPath == null) return;
 
     // Capture reply context before clearing state
     String? replyToId = _replyingToMessage?.id;
@@ -420,6 +437,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           'isForwarded': false,
           'caption': caption,
           'fileName': fileName,
+          'tempId': tempId,
         });
       } catch (e) {
         if (existingTempId == null) {
@@ -669,12 +687,6 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
 
           // Start background upload
           _uploadAndSend(path, caption, type, tempId);
-        }
-      }
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-          }
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
         }
       }
     }
