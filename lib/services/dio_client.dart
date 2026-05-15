@@ -1,5 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart';
+import '../screens/general_pages/splash_screen.dart';
 import 'api_constants.dart';
 
 class DioClient {
@@ -22,7 +26,7 @@ class DioClient {
           'Accept': 'application/json',
         },
         followRedirects: true,
-        validateStatus: (status) => status != null && status < 500,
+        validateStatus: (status) => status != null && status < 500 && status != 401,
       ),
     );
 
@@ -61,7 +65,18 @@ class DioClient {
                   return handler.resolve(response);
                 }
               } catch (refreshErr) {
-                // Refresh failed, maybe redirect to login or clear data
+                // Refresh failed: clear session
+                await _storage.deleteAll();
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                
+                // Redirect to Splash/Login screen
+                if (navigatorKey.currentState != null) {
+                  navigatorKey.currentState!.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const SplashScreen()),
+                    (route) => false,
+                  );
+                }
                 print('Token refresh failed: $refreshErr');
               }
             }

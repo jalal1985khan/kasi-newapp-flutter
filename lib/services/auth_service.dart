@@ -7,6 +7,9 @@ import 'dio_client.dart';
 import 'api_constants.dart';
 import 'fcm_service.dart';
 import 'chat/socket_service.dart';
+import '../main.dart';
+import '../screens/general_pages/splash_screen.dart';
+import 'package:flutter/material.dart';
 
 class AuthService {
   final Dio _dio = DioClient().dio;
@@ -157,6 +160,18 @@ class AuthService {
       }
     } catch (e) {
       print('Manual token refresh failed: $e');
+      // Clear session if refresh fails
+      await _secureStorage.deleteAll();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      // Redirect to Splash/Login screen
+      if (navigatorKey.currentState != null) {
+        navigatorKey.currentState!.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const SplashScreen()),
+          (route) => false,
+        );
+      }
     }
     return null;
   }
