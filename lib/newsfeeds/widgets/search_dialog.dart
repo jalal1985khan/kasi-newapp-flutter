@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../providers/news_provider.dart';
 import '../../models/article.dart';
@@ -15,6 +16,7 @@ class SearchDialog extends StatefulWidget {
 class _SearchDialogState extends State<SearchDialog> {
   final TextEditingController _ctrl = TextEditingController();
   final FocusNode _focus = FocusNode();
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -24,20 +26,32 @@ class _SearchDialogState extends State<SearchDialog> {
     if (provider.lastSearchQuery.isNotEmpty) {
       _ctrl.text = provider.lastSearchQuery;
     }
+    
+    _ctrl.addListener(_onSearchChanged);
+    
     // Auto-focus
     WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
   }
 
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) _search();
+    });
+  }
+
   @override
   void dispose() {
+    _ctrl.removeListener(_onSearchChanged);
     _ctrl.dispose();
     _focus.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
   void _search() {
     final q = _ctrl.text.trim();
-    if (q.isEmpty) return;
+    if (q.isEmpty || q == context.read<NewsProvider>().lastSearchQuery) return;
     context.read<NewsProvider>().searchNews(q);
   }
 
