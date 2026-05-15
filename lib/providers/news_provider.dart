@@ -106,9 +106,9 @@ class NewsProvider extends ChangeNotifier {
     categoryStates[category] = LoadState.loading;
     notifyListeners();
 
+    final key = AppConstants.prefsCategory(category);
     try {
       final oldCategoryNews = List<Article>.from(categoryNews[category] ?? []);
-      final key = AppConstants.prefsCategory(category);
       if (forceRefresh) await _cache.clearKey(key);
 
       final cached = await _cache.loadArticles(key);
@@ -156,10 +156,10 @@ class NewsProvider extends ChangeNotifier {
     searchState = LoadState.loading;
     notifyListeners();
 
+    // Try cache first (keyed by query)
+    final cacheKey =
+        '${AppConstants.prefsSearch}_${query.toLowerCase().replaceAll(' ', '_')}';
     try {
-      // Try cache first (keyed by query)
-      final cacheKey =
-          '${AppConstants.prefsSearch}_${query.toLowerCase().replaceAll(' ', '_')}';
       final cached = await _cache.loadArticles(cacheKey);
       if (cached != null) {
         searchResults = cached;
