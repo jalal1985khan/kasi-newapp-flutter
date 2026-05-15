@@ -34,6 +34,11 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   final Map<String, bool> _onlineStatuses = {};
   late TabController _tabController;
   StreamSubscription? _socketSubscription;
+  
+  // Search state
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -485,8 +490,16 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
 }
 
   Widget _buildCallList() {
-    if (_callLogs.isEmpty) {
-      return _buildPlaceholderTab(Icons.call_outlined, 'Start a call with your contacts');
+    var filteredLogs = _callLogs;
+    if (_searchQuery.isNotEmpty) {
+      filteredLogs = _callLogs.where((log) {
+        final otherUser = _currentUserId != null && log.caller.id == _currentUserId ? log.receiver : log.caller;
+        return otherUser.name.toLowerCase().contains(_searchQuery);
+      }).toList();
+    }
+
+    if (filteredLogs.isEmpty) {
+      return _buildPlaceholderTab(Icons.call_outlined, _searchQuery.isEmpty ? 'Start a call with your contacts' : 'No call logs matching "$_searchQuery"');
     }
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -495,11 +508,11 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
 
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: _callLogs.length,
+      itemCount: filteredLogs.length,
       separatorBuilder: (context, index) =>
           Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
       itemBuilder: (context, index) {
-            final log = _callLogs[index];
+            final log = filteredLogs[index];
             final isOutgoing = _currentUserId != null && log.caller.id == _currentUserId;
             final bool isMissed = ['missed', 'rejected', 'failed'].contains(log.status);
             
@@ -567,7 +580,22 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     final Color waGrey = isDark ? const Color(0xFF8696A0) : Colors.black54;
 
     return AdminLayout(
-      title: 'Chats',
+      titleWidget: _isSearching
+          ? TextField(
+              controller: _searchController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              decoration: InputDecoration(
+                hintText: _tabController.index == 0 ? 'Search chats...' : 'Search calls...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                border: InputBorder.none,
+              ),
+              onChanged: (val) {
+                setState(() => _searchQuery = val.toLowerCase());
+              },
+            )
+          : null,
+      title: _isSearching ? null : 'Chats',
       currentIndex: 3,
       onRefresh: _loadData,
       bottom: TabBar(
@@ -582,7 +610,22 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
           Tab(text: 'CALLS'),
         ],
       ),
-      extraActions: const [],
+      extraActions: [
+        IconButton(
+          icon: Icon(_isSearching ? Icons.close : Icons.search),
+          onPressed: () {
+            setState(() {
+              if (_isSearching) {
+                _isSearching = false;
+                _searchQuery = '';
+                _searchController.clear();
+              } else {
+                _isSearching = true;
+              }
+            });
+          },
+        ),
+      ],
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_tabController.index == 0) {
@@ -655,10 +698,27 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   }
 
   Widget _buildChatList() {
-    final allItems = [
+    var allItems = [
       ..._conversations.map((c) => {'type': 'individual', 'data': c}),
       ..._groups.map((g) => {'type': 'group', 'data': g}),
     ];
+
+    // Filter by search query
+    if (_searchQuery.isNotEmpty) {
+      allItems = allItems.where((item) {
+        if (item['type'] == 'group') {
+          final group = item['data'] as Map;
+          return (group['name'] ?? '').toString().toLowerCase().contains(_searchQuery);
+        } else {
+          final conv = item['data'] as Conversation;
+          final otherParticipant = conv.participants.firstWhere(
+            (p) => p.id != _currentUserId,
+            orElse: () => conv.participants.first,
+          );
+          return otherParticipant.name.toLowerCase().contains(_searchQuery);
+        }
+      }).toList();
+    }
 
     // Sort all by last updated
     allItems.sort((a, b) {
