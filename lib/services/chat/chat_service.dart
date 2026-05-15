@@ -88,7 +88,7 @@ class ChatService {
     }
   }
 
-  Future<Map<String, dynamic>> uploadMedia(String filePath) async {
+  Future<Map<String, dynamic>> uploadMedia(String filePath, {void Function(int, int)? onSendProgress}) async {
     try {
       String fileName = filePath.split('/').last;
       FormData formData = FormData.fromMap({
@@ -98,6 +98,7 @@ class ChatService {
       final response = await _dio.post(
         ApiConstants.uploadSpaces, 
         data: formData,
+        onSendProgress: onSendProgress,
         options: Options(
           headers: {
             'Content-Type': 'multipart/form-data',

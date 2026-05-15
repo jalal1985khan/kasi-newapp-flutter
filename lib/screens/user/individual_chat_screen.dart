@@ -291,9 +291,18 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     }
   }
 
-  void _sendMessage({String type = 'text', String? content, String? caption, String? fileName}) async {
+  void _sendMessage({
+    String type = 'text',
+    String? content,
+    String? caption,
+    String? fileName,
+    String? localPath,
+    MessageUploadStatus uploadStatus = MessageUploadStatus.success,
+    double uploadProgress = 1.0,
+    String? existingTempId,
+  }) async {
     final text = content ?? _messageController.text.trim();
-    if (text.isEmpty && type == 'text') return;
+    if (text.isEmpty && type == 'text' && localPath == null) return;
 
     String? replyToId = _replyingToMessage?.id;
     String? replyToContent;
@@ -306,7 +315,9 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                      : _replyingToMessage!.content;
     }
 
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempId = existingTempId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Create or Update optimistic message
     final optimisticMsg = ChatMessage(
       id: tempId,
       conversationId: _activeConversationId ?? '',
@@ -321,13 +332,26 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       replyToSenderName: replyToSenderName,
       caption: caption,
       fileName: fileName,
+      localPath: localPath,
+      uploadStatus: uploadStatus,
+      uploadProgress: uploadProgress,
     );
 
     setState(() {
-      _messages.insert(0, optimisticMsg);
+      final idx = _messages.indexWhere((m) => m.id == tempId);
+      if (idx != -1) {
+        _messages[idx] = optimisticMsg;
+      } else {
+        _messages.insert(0, optimisticMsg);
+      }
       if (type == 'text' && content == null) _messageController.clear();
       _replyingToMessage = null;
     });
+
+    // If still uploading, don't emit to socket yet
+    if (uploadStatus == MessageUploadStatus.uploading || uploadStatus == MessageUploadStatus.error) {
+      return;
+    }
 
     try {
       _typingTimer?.cancel();
@@ -349,8 +373,60 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
         'fileName': fileName,
       });
     } catch (e) {
-      setState(() => _messages.removeWhere((m) => m.id == tempId));
+      if (existingTempId == null) {
+        setState(() => _messages.removeWhere((m) => m.id == tempId));
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+    }
+  }
+
+  Future<void> _uploadAndSend(String path, String caption, String type, String tempId) async {
+    try {
+      final uploadRes = await _chatService.uploadMedia(
+        path,
+        onSendProgress: (sent, total) {
+          if (mounted) {
+            setState(() {
+              final idx = _messages.indexWhere((m) => m.id == tempId);
+              if (idx != -1) {
+                _messages[idx] = _messages[idx].copyWith(
+                  uploadProgress: sent / total,
+                );
+              }
+            });
+          }
+        },
+      );
+
+      if (uploadRes['success'] == true) {
+        _sendMessage(
+          type: uploadRes['type'] ?? type,
+          content: uploadRes['url'],
+          caption: caption,
+          fileName: p.basename(path),
+          localPath: path,
+          uploadStatus: MessageUploadStatus.success,
+          uploadProgress: 1.0,
+          existingTempId: tempId,
+        );
+      } else {
+        _setUploadError(tempId);
+      }
+    } catch (e) {
+      _setUploadError(tempId);
+    }
+  }
+
+  void _setUploadError(String tempId) {
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: MessageUploadStatus.error,
+          );
+        }
+      });
     }
   }
 
@@ -467,25 +543,32 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       );
 
       if (previewResult != null && previewResult is List) {
-        setState(() => _isLoading = true);
-        try {
-          for (final item in previewResult) {
-            final path = item['path'];
-            final caption = item['caption'];
-            if (path == null) continue;
-            
-            final uploadRes = await _chatService.uploadMedia(path);
-            if (uploadRes['success'] == true) {
-              _sendMessage(
-                type: uploadRes['type'] ?? 'document', 
-                content: uploadRes['url'],
-                caption: caption,
-                fileName: p.basename(path),
-              );
-            }
-          }
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
+        for (final item in previewResult) {
+          final path = item['path'];
+          final caption = item['caption'];
+          if (path == null) continue;
+          
+          final tempId = 'temp_upload_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
+          final ext = p.extension(path).toLowerCase();
+          String type = 'document';
+          if (['.jpg', '.jpeg', '.png', '.gif'].contains(ext)) type = 'image';
+          if (['.mp4', '.mov', '.avi'].contains(ext)) type = 'video';
+          if (['.mp3', '.m4a', '.wav'].contains(ext)) type = 'audio';
+
+          // Send optimistic message immediately with uploading status
+          _sendMessage(
+            type: type,
+            content: '',
+            caption: caption,
+            fileName: p.basename(path),
+            localPath: path,
+            uploadStatus: MessageUploadStatus.uploading,
+            uploadProgress: 0.05,
+            existingTempId: tempId,
+          );
+
+          // Start background upload
+          _uploadAndSend(path, caption, type, tempId);
         }
       }
     }
@@ -619,6 +702,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                                   onLongPress: _showMessageOptions,
                                   isHighlighted: _highlightedMessageId == msg.id,
                                   onReplyTap: _scrollToMessage,
+                                  onUploadRetry: _uploadAndSend,
                                 ),
                               ),
                             ],
@@ -1112,8 +1196,17 @@ class _ChatBubble extends StatelessWidget {
   final Function(ChatMessage) onLongPress;
   final bool isHighlighted;
   final Function(String)? onReplyTap;
+  final Function(String, String, String, String)? onUploadRetry;
 
-  const _ChatBubble({super.key, required this.message, required this.isMe, required this.onLongPress, this.isHighlighted = false, this.onReplyTap});
+  const _ChatBubble({
+    super.key, 
+    required this.message, 
+    required this.isMe, 
+    required this.onLongPress, 
+    this.isHighlighted = false, 
+    this.onReplyTap,
+    this.onUploadRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1264,9 +1357,18 @@ class _ChatBubble extends StatelessWidget {
 
   Widget _buildMessageContent(BuildContext context, Color textColor) {
     Widget media;
+    final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+    final isError = message.uploadStatus == MessageUploadStatus.error;
+
     switch (message.type) {
       case 'image':
-        media = ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(message.content, width: 200, fit: BoxFit.cover));
+        Widget img;
+        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+          img = Image.file(File(message.localPath!), width: 200, fit: BoxFit.cover);
+        } else {
+          img = Image.network(message.content, width: 200, fit: BoxFit.cover);
+        }
+        media = ClipRRect(borderRadius: BorderRadius.circular(8), child: img);
         break;
       case 'audio':
         media = _AudioBubblePlayer(url: message.content, isMe: isMe);
@@ -1294,6 +1396,36 @@ class _ChatBubble extends StatelessWidget {
         break;
       default:
         media = Text(message.content, style: TextStyle(color: textColor, fontSize: 16));
+    }
+
+    if (isUploading || isError) {
+      media = Stack(
+        alignment: Alignment.center,
+        children: [
+          Opacity(opacity: 0.7, child: media),
+          if (isUploading)
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                value: message.uploadProgress,
+                strokeWidth: 3,
+                backgroundColor: Colors.white24,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          if (isError)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 30),
+              onPressed: () {
+                if (message.localPath != null && onUploadRetry != null) {
+                  // Restart upload
+                  onUploadRetry!(message.localPath!, message.caption ?? '', message.type, message.id);
+                }
+              },
+            ),
+        ],
+      );
     }
 
     if (message.caption != null && message.caption!.isNotEmpty) {

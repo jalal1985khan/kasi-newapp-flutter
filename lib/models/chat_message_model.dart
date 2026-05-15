@@ -1,3 +1,5 @@
+enum MessageUploadStatus { pending, uploading, success, error }
+
 class ChatMessageResponse {
   final bool success;
   final List<ChatMessage> messages;
@@ -43,6 +45,11 @@ class ChatMessage {
   final String? replyTo;
   final bool isForwarded;
   final String? caption;
+  
+  // Local-only fields for background upload
+  final double uploadProgress;
+  final MessageUploadStatus uploadStatus;
+  final String? localPath;
 
   ChatMessage({
     required this.id,
@@ -66,6 +73,9 @@ class ChatMessage {
     this.replyTo,
     this.isForwarded = false,
     this.caption,
+    this.uploadProgress = 1.0,
+    this.uploadStatus = MessageUploadStatus.success,
+    this.localPath,
   });
 
   ChatMessage copyWith({
@@ -90,6 +100,9 @@ class ChatMessage {
     String? replyTo,
     bool? isForwarded,
     String? caption,
+    double? uploadProgress,
+    MessageUploadStatus? uploadStatus,
+    String? localPath,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -113,6 +126,9 @@ class ChatMessage {
       replyTo: replyTo ?? this.replyTo,
       isForwarded: isForwarded ?? this.isForwarded,
       caption: caption ?? this.caption,
+      uploadProgress: uploadProgress ?? this.uploadProgress,
+      uploadStatus: uploadStatus ?? this.uploadStatus,
+      localPath: localPath ?? this.localPath,
     );
   }
 
@@ -141,6 +157,8 @@ class ChatMessage {
       replyTo: json['replyTo'] ?? json['reply_to'],
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       caption: json['caption'],
+      uploadProgress: 1.0,
+      uploadStatus: MessageUploadStatus.success,
     );
   }
 }
