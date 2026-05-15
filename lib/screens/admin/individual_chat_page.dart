@@ -22,7 +22,7 @@ import '../../services/auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:path/path.dart' as p;
-import 'attachment_preview_screen.dart';
+import '../user/attachment_preview_screen.dart';
 
 class IndividualChatPage extends StatefulWidget {
   final String name;
