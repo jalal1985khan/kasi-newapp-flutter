@@ -25,8 +25,8 @@ class CallLog {
     return CallLog(
       id: json['_id'],
       tenantId: json['tenantId'] is Map ? json['tenantId']['_id'] : json['tenantId'],
-      caller: CallUser.fromJson(json['callerId']),
-      receiver: CallUser.fromJson(json['receiverId']),
+      caller: CallUser.fromJson(json['callerId'] ?? json['caller'] ?? {}),
+      receiver: CallUser.fromJson(json['receiverId'] ?? json['receiver'] ?? {}),
       status: json['status'] ?? 'unknown',
       duration: json['duration'] ?? 0,
       limitSeconds: json['limitSeconds'] ?? 120,
@@ -53,11 +53,11 @@ class CallUser {
 
   factory CallUser.fromJson(Map<String, dynamic> json) {
     return CallUser(
-      id: json['_id'] ?? '',
+      id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? 'Unknown',
       email: json['email'] ?? '',
       role: json['role'] ?? '',
-      profileImage: json['profileImage'],
+      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'],
     );
   }
 }

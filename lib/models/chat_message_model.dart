@@ -166,7 +166,7 @@ class ChatMessage {
       replyTo: json['replyTo'] ?? json['reply_to'],
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       caption: json['caption'],
-      senderProfileImage: json['senderProfileImage'],
+      senderProfileImage: json['senderProfileImage'] ?? json['sender_profile_image'] ?? json['sender_avatar'],
       uploadProgress: 1.0,
       uploadStatus: MessageUploadStatus.success,
     );

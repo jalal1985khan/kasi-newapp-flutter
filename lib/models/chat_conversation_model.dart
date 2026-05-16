@@ -88,7 +88,7 @@ class Participant {
       email: json['email'] ?? '',
       role: json['role'] ?? '',
       fcmToken: json['fcmToken'] ?? '',
-      profileImage: json['profileImage'],
+      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'],
     );
   }
 }
