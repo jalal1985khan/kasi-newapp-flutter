@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat/chat_service.dart';
+import '../../services/auth_service.dart';
 
 class ChatProfileScreen extends StatefulWidget {
   final String name;
