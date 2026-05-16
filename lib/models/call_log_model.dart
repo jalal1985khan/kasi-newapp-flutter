@@ -75,9 +75,17 @@ class CallUser {
       name: json['name'] ?? userMap?['name'] ?? 'Unknown',
       email: json['email'] ?? userMap?['email'] ?? '',
       role: json['role'] ?? userMap?['role'] ?? '',
-      profileImage: topLevelImage ?? 
-                    json['profileImage'] ?? json['profile_image'] ?? json['avatar'] ?? json['image'] ?? json['pic'] ?? json['profile_pic'] ??
-                    userMap?['profileImage'] ?? userMap?['profile_image'] ?? userMap?['avatar'] ?? userMap?['image'] ?? userMap?['pic'] ?? userMap?['profile_pic'],
+      profileImage: (topLevelImage != null && topLevelImage.isNotEmpty) ? topLevelImage :
+                    json['profileImage'] ?? json['profile_image'] ?? json['profileUrl'] ?? json['profile_url'] ?? 
+                    json['profilePic'] ?? json['profile_pic'] ?? json['profile'] ??
+                    json['avatar'] ?? json['avatarUrl'] ?? json['avatar_url'] ??
+                    json['image'] ?? json['imageUrl'] ?? json['image_url'] ??
+                    json['photo'] ?? json['photoUrl'] ?? json['photo_url'] ?? json['pic'] ??
+                    userMap?['profileImage'] ?? userMap?['profile_image'] ?? userMap?['profileUrl'] ?? userMap?['profile_url'] ?? 
+                    userMap?['profilePic'] ?? userMap?['profile_pic'] ?? userMap?['profile'] ??
+                    userMap?['avatar'] ?? userMap?['avatarUrl'] ?? userMap?['avatar_url'] ??
+                    userMap?['image'] ?? userMap?['imageUrl'] ?? userMap?['image_url'] ??
+                    userMap?['photo'] ?? userMap?['photoUrl'] ?? userMap?['photo_url'] ?? userMap?['pic'],
     );
   }
 }
