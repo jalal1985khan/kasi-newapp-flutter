@@ -69,6 +69,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   StreamSubscription? _socketSubscription;
+  bool _showScrollToBottom = false;
 
   // New features
   bool _isRecording = false;
@@ -99,6 +100,23 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   void _scrollListener() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoadingMore && _hasMore) {
       _loadMoreMessages();
+    }
+    
+    // In a reversed list, scrolling "up" means pixels > 0.
+    if (_scrollController.offset > 300 && !_showScrollToBottom) {
+      setState(() => _showScrollToBottom = true);
+    } else if (_scrollController.offset <= 300 && _showScrollToBottom) {
+      setState(() => _showScrollToBottom = false);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -303,6 +321,15 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         _socketService.emit('message:read', {
           'conversationId': _activeConversationId,
         });
+
+        // Auto-scroll to bottom for own messages or if already at bottom
+        if (_scrollController.hasClients) {
+          final isAtBottom = _scrollController.offset < 100;
+          final isMe = message.senderId == _currentUserId;
+          if (isAtBottom || isMe) {
+            Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+          }
+        }
       } else {
         debugPrint(
           '⚠️ Message mismatch for this chat. Active: $_activeConversationId, Msg: ${message.conversationId}',
@@ -957,6 +984,34 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                 ),
               ),
               _buildMessageInput(),
+            if (_showScrollToBottom)
+              Positioned(
+                right: 16,
+                bottom: 110,
+                child: GestureDetector(
+                  onTap: _scrollToBottom,
+                  child: Container(
+                    width: 45,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF202C33) : Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.keyboard_double_arrow_down,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],

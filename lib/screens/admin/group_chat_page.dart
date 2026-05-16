@@ -60,6 +60,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Duration _previewPosition = Duration.zero;
   Duration _previewDuration = Duration.zero;
   String? _userRole;
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToBottom = false;
 
   SocketService get socket => SocketService();
 
@@ -69,6 +71,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _groupName = widget.name;
     _loadData();
     _setupSocket();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    // In a reversed list, scrolling "up" means pixels > 0.
+    if (_scrollController.offset > 300 && !_showScrollToBottom) {
+      setState(() => _showScrollToBottom = true);
+    } else if (_scrollController.offset <= 300 && _showScrollToBottom) {
+      setState(() => _showScrollToBottom = false);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _setupSocket() {
@@ -144,6 +166,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _typingTimer?.cancel();
     _recordTimer?.cancel();
     _previewPlayer.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -179,6 +202,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
         }
       });
       socket.emit('group:message:read', {'groupId': widget.groupId});
+
+      // Auto-scroll to bottom for own messages or if already at bottom
+      if (_scrollController.hasClients) {
+        final isAtBottom = _scrollController.offset < 100;
+        final isMe = message.senderId == _currentUserId;
+        if (isAtBottom || isMe) {
+          Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+        }
+      }
     }
   }
 
@@ -570,6 +602,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   : RefreshIndicator(
                     onRefresh: _loadData,
                     child: ListView.builder(
+                      controller: _scrollController,
                       padding: const EdgeInsets.all(10),
                       physics: const AlwaysScrollableScrollPhysics(),
                       reverse: true,
@@ -598,9 +631,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                   ? () => _deleteMessage(msg.id)
                                   : null,
                               child: _GroupChatBubble(
+                                key: _messageKeys[msg.id] ??= GlobalKey(),
                                 message: msg,
                                 isMe: isMe,
-                                userRole: _userRole,
+                                onLongPress: (msg) => _showMessageOptions(msg),
+                                userName: msg.senderName ?? 'User',
+                                userRole: msg.senderRole,
+                                isHighlighted: _highlightedMessageId == msg.id,
+                                onReplyTap: _scrollToMessage,
+                                onUploadRetry: (p, c, t, id) => _uploadAndSend(p, c, t, id: id),
                               ),
                             ),
                           ],
@@ -608,10 +647,38 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       },
                     ),
                   ),
-          ),
+            ),
             _buildMessageInput(),
           ],
         ),
+        if (_showScrollToBottom)
+          Positioned(
+            right: 16,
+            bottom: 110,
+            child: GestureDetector(
+              onTap: _scrollToBottom,
+              child: Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF202C33) : Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.keyboard_double_arrow_down,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

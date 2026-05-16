@@ -66,6 +66,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   StreamSubscription? _socketSubscription;
+  bool _showScrollToBottom = false;
 
   // Audio Features
   bool _isRecording = false;
@@ -95,6 +96,23 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   void _scrollListener() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoadingMore && _hasMore) {
       _loadMoreMessages();
+    }
+    
+    // In a reversed list, scrolling "up" means pixels > 0.
+    if (_scrollController.offset > 300 && !_showScrollToBottom) {
+      setState(() => _showScrollToBottom = true);
+    } else if (_scrollController.offset <= 300 && _showScrollToBottom) {
+      setState(() => _showScrollToBottom = false);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -257,6 +275,15 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
           }
         });
         _socketService.emit('message:read', {'conversationId': _activeConversationId});
+        
+        // Auto-scroll to bottom for own messages or if already at bottom
+        if (_scrollController.hasClients) {
+          final isAtBottom = _scrollController.offset < 100;
+          final isMe = message.senderId == _currentUserId;
+          if (isAtBottom || isMe) {
+            Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+          }
+        }
       }
     }
   }
@@ -732,6 +759,34 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
               _buildMessageInput(),
             ],
           ),
+          if (_showScrollToBottom)
+            Positioned(
+              right: 16,
+              bottom: 100,
+              child: GestureDetector(
+                onTap: _scrollToBottom,
+                child: Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF202C33) : Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.keyboard_double_arrow_down,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
