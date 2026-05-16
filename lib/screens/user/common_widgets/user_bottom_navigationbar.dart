@@ -4,7 +4,6 @@ import '../../../providers/chat_provider.dart';
 import '../user_dashboard_screen.dart';
 import '../user_profile_screen.dart';
 import '../user_chat_call_screen.dart';
-import '../../status_screen.dart';
 import '../../../utils/premium_widgets.dart';
 import 'package:flutter/services.dart';
 
@@ -43,7 +42,6 @@ class UserBottomNavigationBar extends StatelessWidget {
           final List<Widget> pages = [
             const UserDashboardScreen(),
             const UserChatCallScreen(),
-            const StatusScreen(isAdmin: false),
             const UserProfileScreen(),
           ];
 
@@ -93,17 +91,6 @@ class UserBottomNavigationBar extends StatelessWidget {
               ),
             ),
             label: 'Chats',
-          ),
-          const BottomNavigationBarItem(
-            icon: Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Icon(Icons.circle_outlined),
-            ),
-            activeIcon: Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Icon(Icons.circle),
-            ),
-            label: 'Status',
           ),
           const BottomNavigationBarItem(
             icon: Padding(

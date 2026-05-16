@@ -13,6 +13,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../services/admin/call_log_service.dart';
 import '../../models/call_log_model.dart';
 import '../special_widgets/call_overlay.dart';
+import '../status_tab_content.dart';
 import '../../utils/premium_widgets.dart';
 
 class UserChatCallScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -364,6 +365,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               ],
             ),
           ),
+          const Tab(text: 'STATUS'),
           const Tab(text: 'CALLS'),
         ],
       ),
@@ -383,7 +385,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
           },
         ),
       ],
-      floatingActionButton: SoftTouchWrapper(
+      floatingActionButton: _tabController.index == 1 ? null : SoftTouchWrapper(
         onTap: () => _tabController.index == 0 ? _showMessageDialog() : _showCallDialog(),
         child: Container(
           width: 56,
@@ -416,6 +418,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                 ? _buildSkeletonList(isDark)
                 : _buildChatList(isDark),
           ),
+          const StatusTabContent(isAdmin: false),
           RefreshIndicator(
             onRefresh: _onRefresh,
             color: waTeal,

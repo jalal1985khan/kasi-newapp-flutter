@@ -5,18 +5,16 @@ import '../services/status_service.dart';
 import '../services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'admin/admin_common_widgets/admin_layout.dart';
-import 'user/common_widgets/user_layout.dart';
 
-class StatusScreen extends StatefulWidget {
+class StatusTabContent extends StatefulWidget {
   final bool isAdmin;
-  const StatusScreen({super.key, required this.isAdmin});
+  const StatusTabContent({super.key, required this.isAdmin});
 
   @override
-  State<StatusScreen> createState() => _StatusScreenState();
+  StatusTabContentState createState() => StatusTabContentState();
 }
 
-class _StatusScreenState extends State<StatusScreen> {
+class StatusTabContentState extends State<StatusTabContent> {
   final StatusService _statusService = StatusService();
   final AuthService _authService = AuthService();
   List<UserStatuses> _allStatuses = [];
@@ -30,7 +28,7 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     final statuses = await _statusService.getStatuses();
     final user = await _authService.getUser();
     if (mounted) {
@@ -42,15 +40,13 @@ class _StatusScreenState extends State<StatusScreen> {
     }
   }
 
-  Future<void> _pickAndUploadStatus() async {
+  Future<void> pickAndUploadStatus() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     
     if (image == null) return;
 
-    // First upload to spaces (reusing existing service if available)
-    // For now, let's assume we have a generic upload
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     final uploadResult = await _authService.uploadProfileImage(image.path);
     
     if (uploadResult['success'] == true) {
@@ -65,12 +61,11 @@ class _StatusScreenState extends State<StatusScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${uploadResult['message']}')));
       }
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _viewStory(UserStatuses userStatus) {
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -83,7 +78,6 @@ class _StatusScreenState extends State<StatusScreen> {
       ),
     );
     
-    // Mark as viewed
     for (var s in userStatus.statuses) {
       if (_currentUser != null && !s.viewers.contains(_currentUser!['id'])) {
         _statusService.viewStatus(s.id);
@@ -93,44 +87,24 @@ class _StatusScreenState extends State<StatusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final content = _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)))
-        : RefreshIndicator(
-            onRefresh: _loadData,
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              children: [
-                if (widget.isAdmin) _buildMyStatusTile(),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Recent updates', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                ),
-                ..._allStatuses.map((us) => _buildUserStatusTile(us)).toList(),
-              ],
-            ),
-          );
-
-    if (widget.isAdmin) {
-      return AdminLayout(
-        title: 'Status',
-        currentIndex: 5, // We'll add this
-        onRefresh: _loadData,
-        floatingActionButton: FloatingActionButton(
-          onPressed: _pickAndUploadStatus,
-          backgroundColor: const Color(0xFF00A884),
-          child: const Icon(Icons.camera_alt, color: Colors.white),
-        ),
-        body: content,
-      );
-    } else {
-      return UserLayout(
-        title: 'Status',
-        currentIndex: 3, // We'll add this
-        onRefresh: _loadData,
-        body: content,
-      );
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
     }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        children: [
+          if (widget.isAdmin) _buildMyStatusTile(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Recent updates', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          ..._allStatuses.map((us) => _buildUserStatusTile(us)).toList(),
+        ],
+      ),
+    );
   }
 
   Widget _buildMyStatusTile() {
@@ -140,7 +114,7 @@ class _StatusScreenState extends State<StatusScreen> {
     );
 
     return ListTile(
-      onTap: myStatus.statuses.isNotEmpty ? () => _viewStory(myStatus) : _pickAndUploadStatus,
+      onTap: myStatus.statuses.isNotEmpty ? () => _viewStory(myStatus) : pickAndUploadStatus,
       leading: Stack(
         children: [
           Container(
@@ -177,14 +151,6 @@ class _StatusScreenState extends State<StatusScreen> {
       subtitle: Text(myStatus.statuses.isNotEmpty 
           ? 'Tap to view status' 
           : 'Tap to add status update'),
-      trailing: myStatus.statuses.isNotEmpty 
-          ? IconButton(
-              icon: const Icon(Icons.more_horiz),
-              onPressed: () {
-                // Show options to delete
-              },
-            )
-          : null,
     );
   }
 
@@ -214,4 +180,3 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 }
-

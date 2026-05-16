@@ -13,6 +13,7 @@ import 'admin_common_widgets/admin_layout.dart';
 import '../special_widgets/call_overlay.dart';
 import '../../services/admin/call_log_service.dart';
 import '../../models/call_log_model.dart';
+import '../status_tab_content.dart';
 
 class ChatCallScreen extends StatefulWidget {
   const ChatCallScreen({super.key});
@@ -34,6 +35,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   String? _currentUserId;
   final Map<String, bool> _onlineStatuses = {};
   late TabController _tabController;
+  final GlobalKey<StatusTabContentState> _statusTabKey = GlobalKey<StatusTabContentState>();
   StreamSubscription? _socketSubscription;
   
   // Search state
@@ -58,7 +60,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -702,6 +704,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               ],
             ),
           ),
+          const Tab(text: 'STATUS'),
           const Tab(text: 'CALLS'),
         ],
       ),
@@ -725,6 +728,8 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         onPressed: () {
           if (_tabController.index == 0) {
             _showMessageDialog(context);
+          } else if (_tabController.index == 1) {
+            _statusTabKey.currentState?.pickAndUploadStatus();
           } else {
             _showCallDialog(context);
           }
@@ -732,7 +737,9 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         backgroundColor: waTeal,
         elevation: 4,
         child: Icon(
-          _tabController.index == 0 ? Icons.message : Icons.add_call,
+          _tabController.index == 0 
+              ? Icons.message 
+              : (_tabController.index == 1 ? Icons.camera_alt : Icons.add_call),
           color: Colors.white,
           size: 28,
         ),
@@ -749,8 +756,8 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                   : _buildChatList(),
             ),
             
-            // Status Tab Placeholder
-            // _buildPlaceholderTab(Icons.update, 'Status updates will appear here'),
+            // Status Tab
+            StatusTabContent(key: _statusTabKey, isAdmin: true),
             
             // Calls Tab
             RefreshIndicator(
