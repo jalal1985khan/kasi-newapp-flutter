@@ -40,8 +40,8 @@ class CallLog {
     return CallLog(
       id: json['_id'] ?? '',
       tenantId: json['tenantId'] is Map ? json['tenantId']['_id'] : json['tenantId'],
-      caller: CallUser.fromJson(callerData),
-      receiver: CallUser.fromJson(receiverData),
+      caller: CallUser.fromJson(callerData, topLevelImage: json['callerImage'] ?? json['caller_image'] ?? json['callerAvatar']),
+      receiver: CallUser.fromJson(receiverData, topLevelImage: json['receiverImage'] ?? json['receiver_image'] ?? json['receiverAvatar']),
       status: json['status'] ?? 'unknown',
       duration: json['duration'] ?? 0,
       limitSeconds: json['limitSeconds'] ?? 120,
@@ -66,7 +66,7 @@ class CallUser {
     this.profileImage,
   });
 
-  factory CallUser.fromJson(Map<String, dynamic> json) {
+  factory CallUser.fromJson(Map<String, dynamic> json, {String? topLevelImage}) {
     // Check for nested user object first
     final userMap = json['user'] is Map<String, dynamic> ? json['user'] : null;
     
@@ -75,8 +75,9 @@ class CallUser {
       name: json['name'] ?? userMap?['name'] ?? 'Unknown',
       email: json['email'] ?? userMap?['email'] ?? '',
       role: json['role'] ?? userMap?['role'] ?? '',
-      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'] ?? json['image'] ?? 
-                    userMap?['profileImage'] ?? userMap?['profile_image'] ?? userMap?['avatar'] ?? userMap?['image'],
+      profileImage: topLevelImage ?? 
+                    json['profileImage'] ?? json['profile_image'] ?? json['avatar'] ?? json['image'] ?? json['pic'] ?? json['profile_pic'] ??
+                    userMap?['profileImage'] ?? userMap?['profile_image'] ?? userMap?['avatar'] ?? userMap?['image'] ?? userMap?['pic'] ?? userMap?['profile_pic'],
     );
   }
 }
