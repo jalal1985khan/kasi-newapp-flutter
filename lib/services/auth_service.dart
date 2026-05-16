@@ -31,6 +31,14 @@ class AuthService {
     }
   }
 
+  static String? getProfileImage(Map<String, dynamic>? user) {
+    if (user == null) return null;
+    return user['profileImage'] ?? user['profile_image'] ?? user['avatar'] ?? 
+           user['image'] ?? user['pic'] ?? user['profile_pic'] ??
+           user['profileUrl'] ?? user['profile_url'] ?? user['profileImageUrl'] ?? user['profile_image_url'] ??
+           user['avatarUrl'] ?? user['avatar_url'] ?? user['avatarImageUrl'] ?? user['avatar_image_url'];
+  }
+
   String? getFullUrl(String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;

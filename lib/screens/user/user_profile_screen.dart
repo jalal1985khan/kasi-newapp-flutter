@@ -415,12 +415,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 child: CircleAvatar(
                                   radius: 50,
                                   backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
-                                  backgroundImage: user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty
-                                      ? NetworkImage("${AuthService().getFullUrl(user['profileImage'])}?t=${DateTime.now().millisecondsSinceEpoch}")
+                                  backgroundImage: AuthService.getProfileImage(user) != null && AuthService.getProfileImage(user)!.isNotEmpty
+                                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${DateTime.now().millisecondsSinceEpoch}")
                                       : null,
                                   child: _isUploadingImage
                                       ? const CircularProgressIndicator(color: Colors.white)
-                                      : (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty
+                                      : (AuthService.getProfileImage(user) == null || AuthService.getProfileImage(user)!.isEmpty
                                           ? Text(
                                               user?['name'] != null && user!['name'].toString().isNotEmpty ? user['name'].toString()[0].toUpperCase() : '?',
                                               style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),

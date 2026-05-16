@@ -48,10 +48,10 @@ class _UserDrawerState extends State<UserDrawer> {
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: isDark ? waTeal : Colors.white,
-                  backgroundImage: user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty
-                      ? NetworkImage("${AuthService().getFullUrl(user['profileImage'])}?t=${DateTime.now().millisecondsSinceEpoch}")
+                  backgroundImage: AuthService.getProfileImage(user) != null && AuthService.getProfileImage(user)!.isNotEmpty
+                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${DateTime.now().millisecondsSinceEpoch}")
                       : null,
-                  child: (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty)
+                  child: (AuthService.getProfileImage(user) == null || AuthService.getProfileImage(user)!.isEmpty)
                       ? Text(
                           user?['name'] != null && user!['name'].toString().isNotEmpty
                               ? user['name'].toString()[0].toUpperCase()
