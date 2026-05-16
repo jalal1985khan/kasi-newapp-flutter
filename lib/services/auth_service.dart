@@ -24,7 +24,11 @@ class AuthService {
 
   Future<void> init() async {
     final user = await getUser();
-    userNotifier.value = user;
+    if (user != null) {
+      userNotifier.value = user;
+      // Fetch fresh profile data in the background to ensure everything (like profile image) is up to date
+      fetchUserProfile();
+    }
   }
 
   String? getFullUrl(String? path) {
@@ -77,21 +81,27 @@ class AuthService {
 
   Future<void> saveLocalSession(SignedInUserDetails data) async {
     try {
-      // Save tokens and user info concurrently - usually takes < 50ms
+      // 1. Save sensitive tokens in secure storage
       await Future.wait([
         _secureStorage.write(key: 'accessToken', value: data.accessToken),
         _secureStorage.write(key: 'refreshToken', value: data.refreshToken),
-        SharedPreferences.getInstance().then((prefs) async {
-          await prefs.setString(
-            'signedinuser',
-            jsonEncode(data.user?.toJson()),
-          );
-          userNotifier.value = data.user?.toJson();
-        }),
       ]);
 
-      // Connect socket after saving session
+      // 2. Save user metadata in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = data.user?.toJson();
+      if (userJson != null) {
+        await prefs.setString('signedinuser', jsonEncode(userJson));
+        // 3. Update the global notifier to trigger UI updates
+        userNotifier.value = userJson;
+      }
+
+      // 4. Connect socket after session is fully established
       SocketService().connect();
+
+      // 5. Trigger a full profile fetch to ensure we have all details (like profile image) 
+      // which might be missing in the initial login response
+      fetchUserProfile();
     } catch (e) {
       print('Error saving local session: $e');
     }
@@ -133,6 +143,9 @@ class AuthService {
       await _secureStorage.deleteAll();
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+      
+      // CRITICAL: Clear the global notifier so UI doesn't show stale user data
+      userNotifier.value = null;
     }
     return true;
   }
