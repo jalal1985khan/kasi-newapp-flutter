@@ -116,16 +116,19 @@ class SocketService {
         _isRefreshing = true;
         print('🔄 [Socket] Auth error. Refreshing token...');
 
-        socket?.disconnect();
         // Wait a bit before refresh to avoid spam
         await Future.delayed(const Duration(milliseconds: 1000));
         
         final newToken = await _authService.refreshAccessToken();
 
-        if (newToken != null && socket != null) {
-          socket!.io.options?['auth'] = {'token': newToken};
-          print('✅ [Socket] Token refreshed. Reconnecting...');
-          socket?.connect();
+        if (newToken != null) {
+          print('✅ [Socket] Token refreshed. Re-initializing socket...');
+          // Fully dispose and reconnect to ensure the NEW token is used
+          socket?.dispose();
+          socket = null;
+          connect();
+        } else {
+          print('❌ [Socket] Token refresh failed. User might need to re-login.');
         }
         
         _isRefreshing = false;
