@@ -19,11 +19,24 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String _selectedRole = '';
+  Map<String, dynamic>? _savedUser;
 
   @override
   void initState() {
     super.initState();
     _checkSavedRole();
+    _loadSavedUser();
+  }
+
+  Future<void> _loadSavedUser() async {
+    final user = await _authService.getLastUser();
+    if (user != null && mounted) {
+      setState(() {
+        _savedUser = user;
+        _emailController.text = user['username'] ?? user['email'] ?? '';
+        _selectedRole = user['role'] ?? '';
+      });
+    }
   }
 
   Future<void> _checkSavedRole() async {
@@ -57,9 +70,15 @@ class _LoginPageState extends State<LoginPage> {
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      final email = _emailController.text.trim();
+      final email = _savedUser != null 
+          ? (_savedUser!['username'] ?? _savedUser!['email'] ?? '').toString()
+          : _emailController.text.trim();
       final password = _passwordController.text;
-      final result = await _authService.login(email, password, _selectedRole);
+      final role = _savedUser != null 
+          ? (_savedUser!['role'] ?? '').toString()
+          : _selectedRole;
+
+      final result = await _authService.login(email, password, role);
       setState(() => _isLoading = false);
 
       if (mounted) {
@@ -124,19 +143,49 @@ class _LoginPageState extends State<LoginPage> {
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(color: waTeal.withOpacity(0.1), shape: BoxShape.circle),
-                    child: const Icon(Icons.admin_panel_settings_outlined, size: 48, color: waTeal),
+                    child: _savedUser != null && AuthService.getProfileImage(_savedUser) != null
+                        ? CircleAvatar(
+                            radius: 40,
+                            backgroundImage: NetworkImage(_authService.getFullUrl(AuthService.getProfileImage(_savedUser))!),
+                          )
+                        : const Icon(Icons.admin_panel_settings_outlined, size: 48, color: waTeal),
                   ),
                   const SizedBox(height: 24),
-                  const Text('Welcome Back', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(
+                    _savedUser != null ? 'Welcome Back, ${_savedUser!['name']}' : 'Welcome Back',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Sign in to continue to your dashboard', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                  Text(
+                    _savedUser != null ? 'Enter password to continue' : 'Sign in to continue to your dashboard',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  ),
                   const SizedBox(height: 48),
-                  _buildTextField(_emailController, 'Usermail', Icons.email_outlined),
-                  const SizedBox(height: 20),
+                  if (_savedUser == null) ...[
+                    _buildTextField(_emailController, 'Usermail', Icons.email_outlined),
+                    const SizedBox(height: 20),
+                    _buildRoleDropdown(),
+                    const SizedBox(height: 20),
+                  ],
                   _buildTextField(_passwordController, 'Password', Icons.lock_outline, obscure: _obscurePassword, isPassword: true),
+                  const SizedBox(height: 12),
+                  if (_savedUser != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _savedUser = null;
+                            _emailController.clear();
+                            _selectedRole = '';
+                          });
+                        },
+                        child: const Text('Switch Account', style: TextStyle(color: waTeal, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
                   const SizedBox(height: 20),
-                  _buildRoleDropdown(),
-                  const SizedBox(height: 32),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(

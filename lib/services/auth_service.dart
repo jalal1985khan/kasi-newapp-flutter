@@ -100,6 +100,8 @@ class AuthService {
       final userJson = data.user?.toJson();
       if (userJson != null) {
         await prefs.setString('signedinuser', jsonEncode(userJson));
+        // Also save for "Remember User" feature
+        await prefs.setString('last_user', jsonEncode(userJson));
         // 3. Update the global notifier to trigger UI updates
         userNotifier.value = userJson;
       }
@@ -147,10 +149,12 @@ class AuthService {
       // Disconnect socket
       SocketService().disconnect();
 
-      // Clear local storage
+      // Clear local storage (Tokens)
       await _secureStorage.deleteAll();
+      
+      // Clear current session but KEEP 'last_user' for Remember Me feature
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await prefs.remove('signedinuser');
       
       // CRITICAL: Clear the global notifier so UI doesn't show stale user data
       userNotifier.value = null;
@@ -216,6 +220,20 @@ class AuthService {
       }
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>?> getLastUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userStr = prefs.getString('last_user');
+    if (userStr != null) {
+      return jsonDecode(userStr);
+    }
+    return null;
+  }
+
+  Future<void> clearLastUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('last_user');
   }
 
   Future<Map<String, dynamic>?> getUser() async {
