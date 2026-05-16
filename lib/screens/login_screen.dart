@@ -31,10 +31,16 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _loadSavedUser() async {
     final user = await _authService.getLastUser();
     if (user != null && mounted) {
+      String savedRole = (user['role'] ?? '').toString().toLowerCase();
+      // Map super_admin to admin for the dropdown/logic
+      if (savedRole == 'super_admin') {
+        savedRole = 'admin';
+      }
+      
       setState(() {
         _savedUser = user;
-        _emailController.text = user['username'] ?? user['email'] ?? '';
-        _selectedRole = user['role'] ?? '';
+        _emailController.text = user['email'] ?? user['username'] ?? '';
+        _selectedRole = savedRole;
       });
     }
   }
@@ -71,12 +77,17 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       final email = _savedUser != null 
-          ? (_savedUser!['username'] ?? _savedUser!['email'] ?? '').toString()
+          ? (_savedUser!['email'] ?? _savedUser!['username'] ?? '').toString()
           : _emailController.text.trim();
       final password = _passwordController.text;
-      final role = _savedUser != null 
-          ? (_savedUser!['role'] ?? '').toString()
+      String role = _savedUser != null 
+          ? (_savedUser!['role'] ?? '').toString().toLowerCase()
           : _selectedRole;
+      
+      // Map specific roles to login categories if needed
+      if (role == 'super_admin') {
+        role = 'admin';
+      }
 
       final result = await _authService.login(email, password, role);
       setState(() => _isLoading = false);

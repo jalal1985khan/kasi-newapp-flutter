@@ -6,6 +6,7 @@ import '../bulk_user_add_screen.dart';
 import '../website_resourses_screen.dart';
 import '../employee_list_screen.dart';
 import '../chat_call_screen.dart';
+import '../../status_screen.dart';
 
 class AdminBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -84,6 +85,15 @@ class AdminBottomNavBar extends StatelessWidget {
                 ),
               );
               break;
+            case 5:
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const StatusScreen(isAdmin: true),
+                  transitionDuration: Duration.zero,
+                ),
+              );
+              break;
           }
         },
         items: [
@@ -127,6 +137,11 @@ class AdminBottomNavBar extends StatelessWidget {
             icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.web_outlined)),
             activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.web)),
             label: 'Web',
+          ),
+          const BottomNavigationBarItem(
+            icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.circle_outlined)),
+            activeIcon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.circle)),
+            label: 'Status',
           ),
         ],
       ),

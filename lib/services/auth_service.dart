@@ -258,6 +258,8 @@ class AuthService {
         if (userData != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('signedinuser', jsonEncode(userData));
+          // Update last_user as well so Smart Login has the latest info (like profile image)
+          await prefs.setString('last_user', jsonEncode(userData));
           userNotifier.value = userData;
           return {'success': true, 'user': userData};
         }
@@ -330,6 +332,7 @@ class AuthService {
           if (email != null) userJson['email'] = email;
           if (profileImage != null) userJson['profileImage'] = profileImage;
           await prefs.setString('signedinuser', jsonEncode(userJson));
+          await prefs.setString('last_user', jsonEncode(userJson));
           userNotifier.value = userJson;
         }
 
