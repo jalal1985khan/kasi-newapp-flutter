@@ -278,7 +278,7 @@ class AuthService {
       });
 
       final response = await _dio.post(
-        ApiConstants.uploadCloudinary,
+        ApiConstants.uploadSpaces,
         data: formData,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
