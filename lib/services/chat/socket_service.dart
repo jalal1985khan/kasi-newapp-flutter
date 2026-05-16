@@ -14,61 +14,90 @@ class SocketService {
   Stream<bool> get connectionStatus => _connectionStatusController.stream;
   bool get isConnected => socket?.connected ?? false;
   bool _isRefreshing = false;
+  Completer<IO.Socket?>? _connectCompleter;
 
   Future<IO.Socket?> connect() async {
+    if (_connectCompleter != null) return _connectCompleter!.future;
+    
     if (socket != null && socket!.connected) return socket;
 
-    final token = await _authService.getAccessToken();
-    if (token == null) return null;
+    _connectCompleter = Completer<IO.Socket?>();
 
-    String socketUrl = ApiConstants.socketUrl.trim();
-    if (socketUrl.endsWith('/')) {
-      socketUrl = socketUrl.substring(0, socketUrl.length - 1);
+    try {
+      final token = await _authService.getAccessToken();
+      if (token == null) {
+        _connectCompleter!.complete(null);
+        _connectCompleter = null;
+        return null;
+      }
+
+      String socketUrl = ApiConstants.socketUrl.trim();
+      if (socketUrl.endsWith('/')) {
+        socketUrl = socketUrl.substring(0, socketUrl.length - 1);
+      }
+
+      bool isLocal =
+          socketUrl.contains('localhost') ||
+          socketUrl.contains('127.0.0.1') ||
+          RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(socketUrl);
+
+      if (isLocal && !socketUrl.contains(':3001')) {
+        socketUrl = '$socketUrl:3001';
+      }
+
+      if (socket != null) {
+        socket!.dispose();
+        socket = null;
+      }
+
+      socket = IO.io(
+        socketUrl,
+        IO.OptionBuilder()
+            .setTransports(['websocket'])
+            .setAuth({'token': token})
+            .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
+            .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
+            .enableReconnection()
+            .setReconnectionDelay(3000)
+            .setReconnectionAttempts(15)
+            .build(),
+      );
+
+      _setupBasicListeners(socketUrl);
+      
+      _connectCompleter!.complete(socket);
+      _connectCompleter = null;
+      return socket;
+    } catch (e) {
+      _connectCompleter!.completeError(e);
+      _connectCompleter = null;
+      return null;
     }
+  }
 
-    bool isLocal =
-        socketUrl.contains('localhost') ||
-        socketUrl.contains('127.0.0.1') ||
-        RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(socketUrl);
-
-    if (isLocal && !socketUrl.contains(':3001')) {
-      socketUrl = '$socketUrl:3001';
-    }
-
-    if (socket != null) {
-      socket!.dispose();
-      socket = null;
-    }
-
-    socket = IO.io(
-      socketUrl,
-      IO.OptionBuilder()
-          .setTransports(['websocket']) // Force websocket for stability
-          .setAuth({'token': token})
-          .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
-          .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
-          .build(),
-    );
+  void _setupBasicListeners(String socketUrl) {
+    if (socket == null) return;
 
     // Re-attach all registered listeners
     _listeners.forEach((event, handlers) {
       for (var h in handlers) {
-        socket!.off(event); // Clear any internal duplicates
+        socket!.off(event);
         socket!.on(event, h);
       }
     });
 
     socket!.onConnect((_) {
-      print('Socket Connected to $socketUrl');
+      print('✅ [Socket] Connected to $socketUrl');
       _connectionStatusController.add(true);
     });
-    socket!.onDisconnect((_) {
-      print('Socket Disconnected');
+
+    socket!.onDisconnect((reason) {
+      print('❌ [Socket] Disconnected: $reason');
       _connectionStatusController.add(false);
     });
 
     socket!.onConnectError((err) async {
-      print('Socket Connect Error: $err (Type: ${err.runtimeType})');
+      print('🔴 [Socket] Connect Error: $err');
 
       if (_isRefreshing) return;
 
@@ -76,32 +105,30 @@ class SocketService {
       bool isTokenError = 
           errStr.contains('token') || 
           errStr.contains('auth') ||
+          errStr.contains('expired') ||
           (err is Map && (
             err['message']?.toString().toLowerCase().contains('token') == true ||
+            err['message']?.toString().toLowerCase().contains('expired') == true ||
             err['error']?.toString().toLowerCase().contains('token') == true
           ));
 
       if (isTokenError) {
         _isRefreshing = true;
-        print('🔄 [Socket] Auth/Token error detected. Refreshing key...');
+        print('🔄 [Socket] Auth error. Refreshing token...');
 
         socket?.disconnect();
-        final newToken = await _authService.getAccessToken();
+        // Wait a bit before refresh to avoid spam
+        await Future.delayed(const Duration(milliseconds: 1000));
+        
+        final newToken = await _authService.refreshAccessToken();
 
         if (newToken != null && socket != null) {
-          var options = socket!.io.options;
-          if (options != null) {
-            options['auth'] = {'token': newToken};
-            print('✅ [Socket] Key refreshed. Reconnecting...');
-
-            Future.delayed(const Duration(milliseconds: 1000), () {
-              socket?.connect();
-              _isRefreshing = false;
-            });
-          }
-        } else {
-          _isRefreshing = false;
+          socket!.io.options?['auth'] = {'token': newToken};
+          print('✅ [Socket] Token refreshed. Reconnecting...');
+          socket?.connect();
         }
+        
+        _isRefreshing = false;
       }
     });
 
@@ -115,8 +142,6 @@ class SocketService {
         _onForceLogout!(msg);
       }
     });
-
-    return socket;
   }
 
   final Map<String, List<Function(dynamic)>> _listeners = {};

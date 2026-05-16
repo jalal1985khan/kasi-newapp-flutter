@@ -135,9 +135,10 @@ class AuthService {
       final payload = json.decode(
         utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
       );
-      final exp = payload['exp'] as int;
-      final now = DateTime.now().millisecondsSinceEpoch / 1000;
-      return now >= exp;
+      final exp = (payload['exp'] as int) * 1000;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // Return true if expired or expiring in the next 30 seconds
+      return now >= (exp - 30000);
     } catch (_) {
       return true;
     }
