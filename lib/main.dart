@@ -11,11 +11,32 @@ import 'services/auth_service.dart';
 import 'services/fcm_service.dart';
 import 'utils/premium_widgets.dart';
 
+import 'package:audio_session/audio_session.dart';
+
 /// Global navigator key — lets SocketService show call UI from anywhere.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Audio Session for VOIP
+  final session = await AudioSession.instance;
+  await session.configure(AudioSessionConfiguration(
+    avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+    avAudioSessionCategoryOptions:
+        AVAudioSessionCategoryOptions.allowBluetooth |
+        AVAudioSessionCategoryOptions.defaultToSpeaker,
+    avAudioSessionMode: AVAudioSessionMode.voiceChat,
+    avAudioSessionRouteSharingPolicy:
+        AVAudioSessionRouteSharingPolicy.defaultPolicy,
+    androidAudioAttributes: AndroidAudioAttributes(
+      contentType: AndroidAudioContentType.speech,
+      flags: AndroidAudioFlags.none,
+      usage: AndroidAudioUsage.voiceCommunication,
+    ),
+    androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransient,
+    androidWillPauseWhenDucked: true,
+  ));
   
   // 1. Initialize Firebase Core
   await Firebase.initializeApp();

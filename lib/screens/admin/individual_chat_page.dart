@@ -66,12 +66,10 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   
   // Pagination
   final ScrollController _scrollController = ScrollController();
-  bool _isLoadingMore = false;
-  bool _hasMore = true;
-  StreamSubscription? _socketSubscription;
   bool _showScrollToBottom = false;
+  StreamSubscription? _socketSubscription;
 
-  // New features
+  // Audio/Recording features
   bool _isRecording = false;
   double _recordDuration = 0;
   Timer? _recordTimer;
@@ -82,10 +80,26 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   Duration _previewPosition = Duration.zero;
   Duration _previewDuration = Duration.zero;
 
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  // Socket handlers
+  late final Function(dynamic) _messageReceiveHandler;
+  late final Function(dynamic) _messageSentHandler;
+  late final Function(dynamic) _typingStartHandler;
+  late final Function(dynamic) _typingStopHandler;
+  late final Function(dynamic) _userOnlineHandler;
+  late final Function(dynamic) _userOfflineHandler;
+  late final Function(dynamic) _userStatusHandler;
+  late final Function(dynamic) _messageReactionHandler;
+  late final Function(dynamic) _readReceiptHandler;
+  late final Function(dynamic) _messageDeletedHandler;
+  late final Function(dynamic) _messageUpdateHandler;
+
   @override
   void initState() {
     super.initState();
     _activeConversationId = widget.conversationId;
+    _initHandlers();
     _loadData();
     _setupSocket();
     _socketSubscription = _socketService.connectionStatus.listen((connected) {
@@ -125,71 +139,35 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _setupSocketListeners();
   }
 
-  @override
-  void dispose() {
-    // _socketService.off('message:receive');
-    _socketService.off('typing:start');
-    _socketService.off('typing:stop');
-    // _socketService.off('user:online');
-    // _socketService.off('user:offline');
-    _socketService.off('user:status_response');
-    // _socketService.off('message:read_receipt');
-    _typingTimer?.cancel();
-    _recordTimer?.cancel();
-    _messageController.dispose();
-    _audioRecorder.dispose();
-    _scrollController.dispose();
-    _socketSubscription?.cancel();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _setupSocketListeners() {
-    _socketService.on(
-      'message:receive',
-      (data) => _handleIncomingMessage(data),
-    );
-    _socketService.on('message:sent', (data) => _handleIncomingMessage(data));
-
-    _socketService.on('typing:start', (data) {
+  void _initHandlers() {
+    _messageReceiveHandler = (data) => _handleIncomingMessage(data);
+    _messageSentHandler = (data) => _handleIncomingMessage(data);
+    _typingStartHandler = (data) {
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = true);
       }
-    });
-
-    _socketService.on('typing:stop', (data) {
+    };
+    _typingStopHandler = (data) {
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = false);
       }
-    });
-
-    _socketService.on('user:online', (data) {
-      if (data['userId'] == widget.receiverId && mounted) {
+    };
+    _userOnlineHandler = (data) {
+      if (data['userId'].toString() == widget.receiverId.toString() && mounted) {
         setState(() => _isOtherUserOnline = true);
       }
-    });
-
-    _socketService.on('user:offline', (data) {
-      debugPrint('🔴 Socket: user:offline received for ${data['userId']}');
+    };
+    _userOfflineHandler = (data) {
       if (data['userId'].toString() == widget.receiverId.toString() && mounted) {
         setState(() => _isOtherUserOnline = false);
       }
-    });
-
-    _socketService.on('user:online', (data) {
-      debugPrint('🟢 Socket: user:online received for ${data['userId']}');
-      if (data['userId'].toString() == widget.receiverId.toString() && mounted) {
-        setState(() => _isOtherUserOnline = true);
-      }
-    });
-
-    _socketService.on('user:status_response', (data) {
+    };
+    _userStatusHandler = (data) {
       if (data['userId'] == widget.receiverId && mounted) {
         setState(() => _isOtherUserOnline = data['isOnline'] ?? false);
       }
-    });
-
-    _socketService.on('message:reaction', (data) {
+    };
+    _messageReactionHandler = (data) {
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() {
           final index = _messages.indexWhere((m) => m.id == data['messageId'] || m.id == data['_id']);
@@ -198,9 +176,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           }
         });
       }
-    });
-
-    _socketService.on('message:read_receipt', (data) {
+    };
+    _readReceiptHandler = (data) {
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() {
           for (int i = 0; i < _messages.length; i++) {
@@ -210,18 +187,15 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           }
         });
       }
-    });
-
-    _socketService.on('message:deleted', (data) {
-      debugPrint('🗑️ Socket: message:deleted received: ${data['messageId']}');
+    };
+    _messageDeletedHandler = (data) {
       if (mounted) {
         setState(() {
           _messages.removeWhere((m) => m.id.toString() == data['messageId'].toString());
         });
       }
-    });
-
-    _socketService.on('message:update', (data) {
+    };
+    _messageUpdateHandler = (data) {
       if (mounted) {
         setState(() {
           final idx = _messages.indexWhere((m) => m.id == data['messageId']);
@@ -230,22 +204,53 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           }
         });
       }
-    });
+    };
+  }
 
-    // Check initial online status
+  void _setupSocketListeners() {
+    _socketService.on('message:receive', _messageReceiveHandler);
+    _socketService.on('message:sent', _messageSentHandler);
+    _socketService.on('typing:start', _typingStartHandler);
+    _socketService.on('typing:stop', _typingStopHandler);
+    _socketService.on('user:online', _userOnlineHandler);
+    _socketService.on('user:offline', _userOfflineHandler);
+    _socketService.on('user:status_response', _userStatusHandler);
+    _socketService.on('message:reaction', _messageReactionHandler);
+    _socketService.on('message:read_receipt', _readReceiptHandler);
+    _socketService.on('message:deleted', _messageDeletedHandler);
+    _socketService.on('message:update', _messageUpdateHandler);
+
     if (widget.receiverId != null) {
       _socketService.emit('user:status', {'userId': widget.receiverId});
     }
-
-    // Mark existing messages as read
     if (_activeConversationId != null) {
-      _socketService.emit('chat:join', {
-        'conversationId': _activeConversationId,
-      });
-      _socketService.emit('message:read', {
-        'conversationId': _activeConversationId,
-      });
+      _socketService.emit('chat:join', {'conversationId': _activeConversationId});
+      _socketService.emit('message:read', {'conversationId': _activeConversationId});
     }
+  }
+
+  @override
+  void dispose() {
+    _socketService.off('message:receive', _messageReceiveHandler);
+    _socketService.off('message:sent', _messageSentHandler);
+    _socketService.off('typing:start', _typingStartHandler);
+    _socketService.off('typing:stop', _typingStopHandler);
+    _socketService.off('user:online', _userOnlineHandler);
+    _socketService.off('user:offline', _userOfflineHandler);
+    _socketService.off('user:status_response', _userStatusHandler);
+    _socketService.off('message:reaction', _messageReactionHandler);
+    _socketService.off('message:read_receipt', _readReceiptHandler);
+    _socketService.off('message:deleted', _messageDeletedHandler);
+    _socketService.off('message:update', _messageUpdateHandler);
+
+    _typingTimer?.cancel();
+    _recordTimer?.cancel();
+    _messageController.dispose();
+    _audioRecorder.dispose();
+    _scrollController.dispose();
+    _socketSubscription?.cancel();
+    _focusNode.dispose();
+    super.dispose();
   }
 
   void _handleIncomingMessage(dynamic data) {

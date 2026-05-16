@@ -13,6 +13,7 @@ class SocketService {
   final _connectionStatusController = StreamController<bool>.broadcast();
   Stream<bool> get connectionStatus => _connectionStatusController.stream;
   bool get isConnected => socket?.connected ?? false;
+  bool _isRefreshing = false;
 
   Future<IO.Socket?> connect() async {
     if (socket != null && socket!.connected) return socket;
@@ -34,14 +35,18 @@ class SocketService {
       socketUrl = '$socketUrl:3001';
     }
 
-    print('Connecting to Socket Server at: $socketUrl');
+    if (socket != null) {
+      socket!.dispose();
+      socket = null;
+    }
 
     socket = IO.io(
       socketUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket', 'polling'])
+          .setTransports(['websocket']) // Force websocket for stability
           .setAuth({'token': token})
           .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
+          .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
           .build(),
     );
 
@@ -62,45 +67,40 @@ class SocketService {
       _connectionStatusController.add(false);
     });
 
-    bool isRefreshing = false;
-
     socket!.onConnectError((err) async {
-      print('Socket Connect Error: $err');
+      print('Socket Connect Error: $err (Type: ${err.runtimeType})');
 
-      if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+      if (_isRefreshing) return;
 
-      // If the error is about an expired token, try to refresh it and reconnect
-      bool isTokenError =
-          err.toString().contains('Invalid or expired token') ||
-          (err is Map && err['message']?.toString().contains('token') == true);
+      final errStr = err.toString().toLowerCase();
+      bool isTokenError = 
+          errStr.contains('token') || 
+          errStr.contains('auth') ||
+          (err is Map && (
+            err['message']?.toString().toLowerCase().contains('token') == true ||
+            err['error']?.toString().toLowerCase().contains('token') == true
+          ));
 
       if (isTokenError) {
-        isRefreshing = true;
-        print(
-          '🔄 [Socket] Expired token detected. Refreshing key before retry...',
-        );
+        _isRefreshing = true;
+        print('🔄 [Socket] Auth/Token error detected. Refreshing key...');
 
-        // 1. Temporarily stop the socket to prevent instant retries
         socket?.disconnect();
-
-        // 2. Fetch the new token
         final newToken = await _authService.getAccessToken();
 
         if (newToken != null && socket != null) {
-          // 3. Update the auth options
           var options = socket!.io.options;
           if (options != null) {
             options['auth'] = {'token': newToken};
-            print('✅ [Socket] Key refreshed. Reconnecting now...');
+            print('✅ [Socket] Key refreshed. Reconnecting...');
 
-            // 4. Wait a tiny bit for the socket to settle, then connect
-            Future.delayed(const Duration(milliseconds: 500), () {
+            Future.delayed(const Duration(milliseconds: 1000), () {
               socket?.connect();
-              isRefreshing = false;
+              _isRefreshing = false;
             });
           }
         } else {
-          isRefreshing = false;
+          _isRefreshing = false;
         }
       }
     });
@@ -145,12 +145,30 @@ class SocketService {
   }
 
   void on(String event, Function(dynamic) handler) {
-    _listeners.putIfAbsent(event, () => []).add(handler);
-    socket?.on(event, handler);
+    // Only add if this specific handler instance isn't already registered for this event
+    final handlers = _listeners.putIfAbsent(event, () => []);
+    if (!handlers.contains(handler)) {
+      handlers.add(handler);
+      socket?.on(event, handler);
+    }
   }
 
-  void off(String event) {
-    _listeners.remove(event);
-    socket?.off(event);
+  void off(String event, [Function(dynamic)? handler]) {
+    if (handler != null) {
+      // Remove specific handler
+      _listeners[event]?.remove(handler);
+      socket?.off(event, handler);
+    } else {
+      // Remove all handlers for this event
+      _listeners.remove(event);
+      socket?.off(event);
+    }
+  }
+
+  void clearListeners() {
+    _listeners.forEach((event, handlers) {
+      socket?.off(event);
+    });
+    _listeners.clear();
   }
 }

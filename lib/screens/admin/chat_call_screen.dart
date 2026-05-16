@@ -40,6 +40,18 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  // Socket handlers
+  late final Function(dynamic) _userOnlineHandler;
+  late final Function(dynamic) _userOfflineHandler;
+  late final Function(dynamic) _usersOnlineListHandler;
+  late final Function(dynamic) _userStatusResponseHandler;
+  late final Function(dynamic) _groupCreatedHandler;
+  late final Function(dynamic) _groupDeletedHandler;
+  late final Function(dynamic) _groupRenamedHandler;
+  late final Function(dynamic) _messageReceiveHandler;
+  late final Function(dynamic) _messageSentHandler;
+  late final Function(dynamic) _groupMessageReceiveHandler;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +59,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+    _initHandlers();
     _socketService.connect();
     _setupSocketListeners();
     _socketSubscription = _socketService.connectionStatus.listen((connected) {
@@ -58,61 +71,77 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _loadData();
   }
 
+  void _initHandlers() {
+    _userOnlineHandler = (data) {
+      if (mounted) setState(() => _onlineStatuses[data['userId']] = true);
+    };
+    _userOfflineHandler = (data) {
+      if (mounted) setState(() => _onlineStatuses[data['userId']] = false);
+    };
+    _usersOnlineListHandler = (data) {
+      final List<dynamic> onlineIds = data['userIds'] ?? [];
+      if (mounted) {
+        setState(() {
+          _onlineStatuses.clear();
+          for (var id in onlineIds) {
+            _onlineStatuses[id.toString()] = true;
+          }
+        });
+      }
+    };
+    _userStatusResponseHandler = (data) {
+      if (mounted)
+        setState(() => _onlineStatuses[data['userId']] = data['isOnline'] ?? false);
+    };
+    _groupCreatedHandler = (data) {
+      if (mounted) _onRefresh();
+    };
+    _groupDeletedHandler = (data) {
+      if (mounted) _onRefresh();
+    };
+    _groupRenamedHandler = (data) {
+      if (mounted) _onRefresh();
+    };
+    _messageReceiveHandler = (data) {
+      if (mounted) _loadData(silent: true);
+    };
+    _messageSentHandler = (data) {
+      if (mounted) _loadData(silent: true);
+    };
+    _groupMessageReceiveHandler = (data) {
+      if (mounted) _loadData(silent: true);
+    };
+  }
+
   @override
   void dispose() {
+    _socketService.off('user:online', _userOnlineHandler);
+    _socketService.off('user:offline', _userOfflineHandler);
+    _socketService.off('users:online_list', _usersOnlineListHandler);
+    _socketService.off('user:status_response', _userStatusResponseHandler);
+    _socketService.off('group:created', _groupCreatedHandler);
+    _socketService.off('group:deleted', _groupDeletedHandler);
+    _socketService.off('group:renamed', _groupRenamedHandler);
+    _socketService.off('message:receive', _messageReceiveHandler);
+    _socketService.off('message:sent', _messageSentHandler);
+    _socketService.off('group:message:receive', _groupMessageReceiveHandler);
+
     _tabController.dispose();
     _socketSubscription?.cancel();
     super.dispose();
   }
 
   void _setupSocketListeners() {
-    _socketService.on('user:online', (data) {
-      if (mounted) setState(() => _onlineStatuses[data['userId']] = true);
-    });
-    _socketService.on('user:offline', (data) {
-      if (mounted) setState(() => _onlineStatuses[data['userId']] = false);
-    });
-    _socketService.on('users:online_list', (data) {
-      final List<dynamic> onlineIds = data['userIds'] ?? [];
-      if (mounted) {
-        setState(() {
-          _onlineStatuses.clear(); // Clear old statuses to avoid "always online" bug
-          for (var id in onlineIds) {
-            _onlineStatuses[id.toString()] = true;
-          }
-        });
-      }
-    });
-    _socketService.on('user:status_response', (data) {
-      if (mounted)
-        setState(
-          () => _onlineStatuses[data['userId']] = data['isOnline'] ?? false,
-        );
-    });
-
-    _socketService.on('group:created', (data) {
-      if (mounted) _onRefresh();
-    });
-
-    _socketService.on('group:deleted', (data) {
-      if (mounted) _onRefresh();
-    });
-
-    _socketService.on('group:renamed', (data) {
-      if (mounted) _onRefresh();
-    });
-
-    // Real-time message updates for the conversation list
-    // this is addedd but not wokring need to check
-    _socketService.on('message:receive', (data) {
-      if (mounted) _loadData(silent: true);
-    });
-    _socketService.on('message:sent', (data) {
-      if (mounted) _loadData(silent: true);
-    });
-    _socketService.on('group:message:receive', (data) {
-      if (mounted) _loadData(silent: true);
-    });
+    _socketService.on('user:online', _userOnlineHandler);
+    _socketService.on('user:offline', _userOfflineHandler);
+    _socketService.on('users:online_list', _usersOnlineListHandler);
+    _socketService.on('user:status_response', _userStatusResponseHandler);
+    _socketService.on('group:created', _groupCreatedHandler);
+    _socketService.on('group:deleted', _groupDeletedHandler);
+    _socketService.on('group:renamed', _groupRenamedHandler);
+    _socketService.on('message:receive', _messageReceiveHandler);
+    _socketService.on('message:sent', _messageSentHandler);
+    _socketService.on('group:message:receive', _groupMessageReceiveHandler);
   }
 
   Future<void> _loadData({bool silent = false}) async {

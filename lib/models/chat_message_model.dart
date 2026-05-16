@@ -39,6 +39,7 @@ class ChatMessage {
   final List<dynamic> deletedFor;
   final DateTime createdAt;
   final String? senderName;
+  final String? senderRole;
   final String? reaction;
   final String? replyToContent;
   final String? replyToSenderName;
@@ -67,6 +68,7 @@ class ChatMessage {
     required this.deletedFor,
     required this.createdAt,
     this.senderName,
+    this.senderRole,
     this.reaction,
     this.replyToContent,
     this.replyToSenderName,
@@ -94,6 +96,7 @@ class ChatMessage {
     List<dynamic>? deletedFor,
     DateTime? createdAt,
     String? senderName,
+    String? senderRole,
     String? reaction,
     String? replyToContent,
     String? replyToSenderName,
@@ -120,6 +123,7 @@ class ChatMessage {
       deletedFor: deletedFor ?? this.deletedFor,
       createdAt: createdAt ?? this.createdAt,
       senderName: senderName ?? this.senderName,
+      senderRole: senderRole ?? this.senderRole,
       reaction: reaction ?? this.reaction,
       replyToContent: replyToContent ?? this.replyToContent,
       replyToSenderName: replyToSenderName ?? this.replyToSenderName,
@@ -151,6 +155,7 @@ class ChatMessage {
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
       senderName: json['senderName'],
+      senderRole: json['senderRole'],
       reaction: json['reaction'],
       replyToContent: json['replyToContent'] ?? json['reply_to_content'],
       replyToSenderName: json['replyToSenderName'] ?? json['reply_to_sender_name'],

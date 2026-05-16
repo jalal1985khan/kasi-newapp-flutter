@@ -69,10 +69,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   SocketService get socket => SocketService();
 
+  // Socket handlers
+  late final Function(dynamic) _messageReceiveHandler;
+  late final Function(dynamic) _typingStartHandler;
+  late final Function(dynamic) _typingStopHandler;
+  late final Function(dynamic) _renamedHandler;
+  late final Function(dynamic) _deletedHandler;
+  late final Function(dynamic) _messageDeletedHandler;
+  late final Function(dynamic) _messageEditedHandler;
+
   @override
   void initState() {
     super.initState();
     _groupName = widget.name;
+    _initHandlers();
     _loadData();
     _setupSocket();
     _scrollController.addListener(_scrollListener);
@@ -151,56 +161,43 @@ class _GroupChatPageState extends State<GroupChatPage> {
     );
   }
 
-  void _setupSocket() {
-    socket.connect();
-    socket.emit('group:join', {'groupId': widget.groupId});
-
-    socket.on('group:message:receive', (data) => _handleIncomingMessage(data));
-
-    socket.on('group:typing:start', (data) {
+  void _initHandlers() {
+    _messageReceiveHandler = (data) => _handleIncomingMessage(data);
+    _typingStartHandler = (data) {
       if (data['groupId'] == widget.groupId && mounted) {
         final name = data['senderName'] ?? 'Someone';
         if (!_typingUsers.contains(name)) {
           setState(() => _typingUsers.add(name));
         }
       }
-    });
-
-    socket.on('group:typing:stop', (data) {
+    };
+    _typingStopHandler = (data) {
       if (data['groupId'] == widget.groupId && mounted) {
         final name = data['senderName'] ?? 'Someone';
         setState(() => _typingUsers.remove(name));
       }
-    });
-
-    socket.on('group:renamed', (data) {
+    };
+    _renamedHandler = (data) {
       if (data['groupId'] == widget.groupId && mounted) {
         setState(() => _groupName = data['newName']);
       }
-    });
-
-    socket.on('group:deleted', (data) {
+    };
+    _deletedHandler = (data) {
       if (data['groupId'] == widget.groupId && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This group has been deleted by the admin.'),
-          ),
+          const SnackBar(content: Text('This group has been deleted by the admin.')),
         );
         Navigator.pop(context);
       }
-    });
-
-    socket.on('group:message:deleted', (data) {
-      debugPrint('🗑️ Socket: group:message:deleted received: ${data['messageId']}');
+    };
+    _messageDeletedHandler = (data) {
       if (mounted) {
         setState(() {
           _messages.removeWhere((m) => m.id.toString() == data['messageId'].toString());
         });
       }
-    });
-
-    socket.on('group:message:edited', (data) {
-      debugPrint('✏️ Socket: group:message:edited received: ${data['messageId']}');
+    };
+    _messageEditedHandler = (data) {
       if (mounted) {
         setState(() {
           final idx = _messages.indexWhere((m) => m.id.toString() == data['messageId'].toString());
@@ -209,18 +206,32 @@ class _GroupChatPageState extends State<GroupChatPage> {
           }
         });
       }
-    });
+    };
+  }
 
-    // Handle being added to new groups or group deletions if needed
+  void _setupSocket() {
+    socket.connect();
+    socket.emit('group:join', {'groupId': widget.groupId});
+
+    socket.on('group:message:receive', _messageReceiveHandler);
+    socket.on('group:typing:start', _typingStartHandler);
+    socket.on('group:typing:stop', _typingStopHandler);
+    socket.on('group:renamed', _renamedHandler);
+    socket.on('group:deleted', _deletedHandler);
+    socket.on('group:message:deleted', _messageDeletedHandler);
+    socket.on('group:message:edited', _messageEditedHandler);
   }
 
   @override
   void dispose() {
-    socket.off('group:message:receive');
-    socket.off('group:typing:start');
-    socket.off('group:typing:stop');
-    socket.off('group:renamed');
-    socket.off('group:deleted');
+    socket.off('group:message:receive', _messageReceiveHandler);
+    socket.off('group:typing:start', _typingStartHandler);
+    socket.off('group:typing:stop', _typingStopHandler);
+    socket.off('group:renamed', _renamedHandler);
+    socket.off('group:deleted', _deletedHandler);
+    socket.off('group:message:deleted', _messageDeletedHandler);
+    socket.off('group:message:edited', _messageEditedHandler);
+    
     _typingTimer?.cancel();
     _recordTimer?.cancel();
     _previewPlayer.dispose();
@@ -798,12 +809,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                   ? () => _deleteMessage(msg.id)
                                   : null,
                               child: _GroupChatBubble(
-                                key: _messageKeys[msg.id] ??= GlobalKey(),
+                                key: _messageKeys[msg.id] ?? (_messageKeys[msg.id] = GlobalKey()),
                                 message: msg,
                                 isMe: isMe,
                                 onLongPress: (msg) => _showMessageOptions(msg),
                                 userName: msg.senderName ?? 'User',
-                                userRole: _userRole,
+                                userRole: msg.senderRole,
                                 isHighlighted: _highlightedMessageId == msg.id,
                                 onReplyTap: _scrollToMessage,
                                 onUploadRetry: (path, caption, type, id) => _uploadAndSend(path, caption, type, id: id),
