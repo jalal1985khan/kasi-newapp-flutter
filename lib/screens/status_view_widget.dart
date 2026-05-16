@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../models/status_model.dart';
 import '../services/auth_service.dart';
 
@@ -27,23 +28,65 @@ class _CustomStatusViewState extends State<CustomStatusView> {
   Timer? _timer;
   final PageController _pageController = PageController();
   final AuthService _authService = AuthService();
+  VideoPlayerController? _videoController;
+  bool _isVideoLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    _playCurrentStatus();
   }
 
-  void _startTimer() {
+  void _playCurrentStatus() {
     _timer?.cancel();
+    _videoController?.dispose();
+    _videoController = null;
     _progress = 0.0;
+
+    final status = widget.statuses[_currentIndex];
+
+    if (status.type == 'video') {
+      _isVideoLoading = true;
+      _videoController = VideoPlayerController.networkUrl(
+        Uri.parse(_authService.getFullUrl(status.content)!),
+      )..initialize().then((_) {
+          if (mounted) {
+            setState(() {
+              _isVideoLoading = false;
+              _videoController!.play();
+              _startVideoTimer();
+            });
+          }
+        });
+    } else {
+      _startImageTimer();
+    }
+  }
+
+  void _startImageTimer() {
     _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      setState(() {
-        _progress += 0.01; // 50ms * 100 = 5 seconds total
-        if (_progress >= 1.0) {
-          _nextStatus();
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _progress += 0.01; // 5 seconds
+          if (_progress >= 1.0) {
+            _nextStatus();
+          }
+        });
+      }
+    });
+  }
+
+  void _startVideoTimer() {
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (mounted && _videoController != null && _videoController!.value.isInitialized) {
+        setState(() {
+          _progress = _videoController!.value.position.inMilliseconds /
+              _videoController!.value.duration.inMilliseconds;
+          if (_progress >= 1.0) {
+            _nextStatus();
+          }
+        });
+      }
     });
   }
 
@@ -51,12 +94,8 @@ class _CustomStatusViewState extends State<CustomStatusView> {
     if (_currentIndex < widget.statuses.length - 1) {
       setState(() {
         _currentIndex++;
-        _pageController.animateToPage(
-          _currentIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-        _startTimer();
+        _pageController.jumpToPage(_currentIndex);
+        _playCurrentStatus();
       });
     } else {
       _timer?.cancel();
@@ -68,12 +107,8 @@ class _CustomStatusViewState extends State<CustomStatusView> {
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
-        _pageController.animateToPage(
-          _currentIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-        _startTimer();
+        _pageController.jumpToPage(_currentIndex);
+        _playCurrentStatus();
       });
     }
   }
@@ -81,6 +116,7 @@ class _CustomStatusViewState extends State<CustomStatusView> {
   @override
   void dispose() {
     _timer?.cancel();
+    _videoController?.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -98,6 +134,18 @@ class _CustomStatusViewState extends State<CustomStatusView> {
             _nextStatus();
           }
         },
+        onLongPressStart: (_) {
+          _timer?.cancel();
+          _videoController?.pause();
+        },
+        onLongPressEnd: (_) {
+          if (widget.statuses[_currentIndex].type == 'video') {
+            _videoController?.play();
+            _startVideoTimer();
+          } else {
+            _startImageTimer();
+          }
+        },
         child: Stack(
           children: [
             // Status Content
@@ -107,48 +155,70 @@ class _CustomStatusViewState extends State<CustomStatusView> {
               itemCount: widget.statuses.length,
               itemBuilder: (context, index) {
                 final status = widget.statuses[index];
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      _authService.getFullUrl(status.content)!,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(child: CircularProgressIndicator(color: Colors.white));
-                      },
+                if (status.type == 'video') {
+                  return Center(
+                    child: _videoController != null && _videoController!.value.isInitialized
+                        ? AspectRatio(
+                            aspectRatio: _videoController!.value.aspectRatio,
+                            child: VideoPlayer(_videoController!),
+                          )
+                        : const CircularProgressIndicator(color: Colors.white),
+                  );
+                } else if (status.type == 'text') {
+                  return Container(
+                    color: Colors.blueGrey,
+                    padding: const EdgeInsets.all(40),
+                    alignment: Alignment.center,
+                    child: Text(
+                      status.content,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                     ),
-                    if (status.caption != null && status.caption!.isNotEmpty)
-                      Positioned(
-                        bottom: 50,
-                        left: 20,
-                        right: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            status.caption!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white, fontSize: 16),
+                  );
+                } else {
+                  // Image
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        _authService.getFullUrl(status.content)!,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(child: CircularProgressIndicator(color: Colors.white));
+                        },
+                      ),
+                      if (status.caption != null && status.caption!.isNotEmpty)
+                        Positioned(
+                          bottom: 50,
+                          left: 20,
+                          right: 20,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              status.caption!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                );
+                    ],
+                  );
+                }
               },
             ),
 
-            // Top Bar (Progress + User Info)
+            // Top Bar
             Positioned(
               top: 50,
               left: 0,
               right: 0,
               child: Column(
                 children: [
-                  // Progress Bars
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
@@ -170,7 +240,6 @@ class _CustomStatusViewState extends State<CustomStatusView> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // User Info
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: Row(
