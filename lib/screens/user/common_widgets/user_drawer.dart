@@ -49,16 +49,21 @@ class _UserDrawerState extends State<UserDrawer> {
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: isDark ? waTeal : Colors.white,
-                  child: Text(
-                    user?['name'] != null && user!['name'].toString().isNotEmpty
-                        ? user['name'].toString()[0].toUpperCase()
-                        : 'U',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : waTeal,
-                    ),
-                  ),
+                  backgroundImage: (user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty)
+                      ? NetworkImage(user['profileImage'])
+                      : null,
+                  child: (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty)
+                      ? Text(
+                          user?['name'] != null && user!['name'].toString().isNotEmpty
+                              ? user['name'].toString()[0].toUpperCase()
+                              : 'U',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : waTeal,
+                          ),
+                        )
+                      : null,
                 ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF202C33) : waTeal,

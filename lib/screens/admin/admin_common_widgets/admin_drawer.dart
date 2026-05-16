@@ -53,16 +53,21 @@ class _AdminDrawerState extends State<AdminDrawer> {
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: waTeal,
-                  child: Text(
-                    user?['name'] != null && user!['name'].toString().isNotEmpty
-                        ? user['name'].toString()[0].toUpperCase()
-                        : 'A',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  backgroundImage: (user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty)
+                      ? NetworkImage(user['profileImage'])
+                      : null,
+                  child: (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty)
+                      ? Text(
+                          user?['name'] != null && user!['name'].toString().isNotEmpty
+                              ? user['name'].toString()[0].toUpperCase()
+                              : 'A',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        )
+                      : null,
                 ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF202C33) : waTeal,

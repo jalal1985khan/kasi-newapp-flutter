@@ -1299,81 +1299,103 @@ class _ChatBubble extends StatelessWidget {
       color: isHighlighted ? (isDark ? Colors.white12 : Colors.black12) : Colors.transparent,
       child: GestureDetector(
         onLongPress: () => onLongPress(message),
-        child: Align(
-          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.8,
-            ),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isMe ? bubbleMe : bubbleOther,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(15),
-                  topRight: const Radius.circular(15),
-                  bottomLeft: isMe ? const Radius.circular(15) : const Radius.circular(5),
-                  bottomRight: isMe ? const Radius.circular(5) : const Radius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isMe)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2, right: 4),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                    backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
+                        ? NetworkImage(message.senderProfileImage!)
+                        : null,
+                    child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
+                        ? Text(
+                            (message.senderName ?? 'P')[0].toUpperCase(),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          )
+                        : null,
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (message.isForwarded)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.forward, size: 12, color: subTextColor),
-                          const SizedBox(width: 4),
-                          Text('Forwarded', style: TextStyle(fontSize: 11, color: subTextColor, fontStyle: FontStyle.italic)),
-                        ],
-                      ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isMe ? bubbleMe : bubbleOther,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(15),
+                      topRight: const Radius.circular(15),
+                      bottomLeft: isMe ? const Radius.circular(15) : const Radius.circular(5),
+                      bottomRight: isMe ? const Radius.circular(5) : const Radius.circular(15),
                     ),
-                  if (message.replyToContent != null)
-                    _buildReplyContext(isDark),
-                  _buildMessageContent(context, textColor),
-                  if (message.reaction != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.black26 : Colors.black.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(message.reaction!, style: const TextStyle(fontSize: 16)),
-                      ),
-                    ),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      const SizedBox(width: 20), // Minimum space between text and meta
-                      Text(
-                        DateFormat('hh:mm a').format(message.createdAt.toLocal()),
-                        style: TextStyle(fontSize: 10, color: subTextColor),
-                      ),
-                      if (isMe) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.done_all,
-                          color: message.isRead ? const Color(0xFF34B7F1) : subTextColor,
-                          size: 16,
-                        ),
-                      ],
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1)),
                     ],
                   ),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.isForwarded)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.forward, size: 12, color: subTextColor),
+                              const SizedBox(width: 4),
+                              Text('Forwarded', style: TextStyle(fontSize: 11, color: subTextColor, fontStyle: FontStyle.italic)),
+                            ],
+                          ),
+                        ),
+                      if (message.replyToContent != null)
+                        _buildReplyContext(isDark),
+                      _buildMessageContent(context, textColor),
+                      if (message.reaction != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.black26 : Colors.black.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(message.reaction!, style: const TextStyle(fontSize: 16)),
+                          ),
+                        ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const SizedBox(width: 20), // Minimum space between text and meta
+                          Text(
+                            DateFormat('hh:mm a').format(message.createdAt.toLocal()),
+                            style: TextStyle(fontSize: 10, color: subTextColor),
+                          ),
+                          if (isMe) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.done_all,
+                              color: message.isRead ? const Color(0xFF34B7F1) : subTextColor,
+                              size: 16,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

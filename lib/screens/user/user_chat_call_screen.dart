@@ -574,7 +574,19 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
           leading: CircleAvatar(
             radius: 28,
             backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-            child: Text(otherUser.name.isNotEmpty ? otherUser.name[0].toUpperCase() : '?', style: TextStyle(fontSize: 22, color: isDark ? Colors.white70 : Colors.grey[600], fontWeight: FontWeight.bold)),
+            backgroundImage: (otherUser.profileImage != null && otherUser.profileImage!.isNotEmpty)
+                ? NetworkImage(otherUser.profileImage!)
+                : null,
+            child: (otherUser.profileImage == null || otherUser.profileImage!.isEmpty)
+                ? Text(
+                    otherUser.name.isNotEmpty ? otherUser.name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontSize: 22, 
+                      color: isDark ? Colors.white70 : Colors.grey[600], 
+                      fontWeight: FontWeight.bold
+                    ),
+                  )
+                : null,
           ),
           title: Text(otherUser.name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: isMissed ? Colors.redAccent : textColor)),
           subtitle: Row(

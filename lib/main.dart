@@ -64,6 +64,7 @@ void main() async {
       overlay,
       callerName: data['callerName'] ?? 'Unknown',
       callerId:   data['callerId']  ?? '',
+      callerImage: data['callerImage'] ?? '',
       callId:     data['callId']    ?? '',
       roomName:   data['roomName']  ?? '',
     );

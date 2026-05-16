@@ -41,12 +41,14 @@ class CallUser {
   final String name;
   final String email;
   final String role;
+  final String? profileImage;
 
   CallUser({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
+    this.profileImage,
   });
 
   factory CallUser.fromJson(Map<String, dynamic> json) {
@@ -55,6 +57,7 @@ class CallUser {
       name: json['name'] ?? 'Unknown',
       email: json['email'] ?? '',
       role: json['role'] ?? '',
+      profileImage: json['profileImage'],
     );
   }
 }

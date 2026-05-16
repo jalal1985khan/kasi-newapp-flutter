@@ -366,14 +366,19 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                     child: CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.white24,
-                      child: Text(
-                        widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      backgroundImage: (widget.avatar.isNotEmpty)
+                          ? NetworkImage(widget.avatar)
+                          : null,
+                      child: (widget.avatar.isEmpty)
+                          ? Text(
+                              widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),
@@ -491,10 +496,15 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: Colors.white24,
-                  child: Text(
-                    widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  backgroundImage: (widget.avatar.isNotEmpty)
+                      ? NetworkImage(widget.avatar)
+                      : null,
+                  child: (widget.avatar.isEmpty)
+                      ? Text(
+                          widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -564,6 +574,7 @@ class IncomingCallOverlayManager {
     BuildContext context, {
     required String callerName,
     required String callerId,
+    required String callerImage,
     required String callId,
     required String roomName,
   }) {
@@ -571,6 +582,7 @@ class IncomingCallOverlayManager {
       Overlay.of(context),
       callerName: callerName,
       callerId: callerId,
+      callerImage: callerImage,
       callId: callId,
       roomName: roomName,
     );
@@ -580,6 +592,7 @@ class IncomingCallOverlayManager {
     OverlayState overlay, {
     required String callerName,
     required String callerId,
+    required String callerImage,
     required String callId,
     required String roomName,
   }) {
@@ -588,6 +601,7 @@ class IncomingCallOverlayManager {
       builder: (_) => IncomingCallOverlay(
         callerName: callerName,
         callerId: callerId,
+        callerImage: callerImage,
         callId: callId,
         roomName: roomName,
         onDismiss: hide,
@@ -611,6 +625,7 @@ class IncomingCallOverlayManager {
 class IncomingCallOverlay extends StatefulWidget {
   final String callerName;
   final String callerId;
+  final String callerImage;
   final String callId;
   final String roomName;
   final VoidCallback onDismiss;
@@ -619,6 +634,7 @@ class IncomingCallOverlay extends StatefulWidget {
     super.key,
     required this.callerName,
     required this.callerId,
+    required this.callerImage,
     required this.callId,
     required this.roomName,
     required this.onDismiss,
@@ -844,10 +860,15 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                 child: CircleAvatar(
                   radius: 60,
                   backgroundColor: Colors.blueAccent.withOpacity(0.3),
-                  child: Text(
-                    widget.callerName.isNotEmpty ? widget.callerName[0].toUpperCase() : '?',
-                    style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
-                  ),
+                  backgroundImage: (widget.callerImage.isNotEmpty)
+                      ? NetworkImage(widget.callerImage)
+                      : null,
+                  child: (widget.callerImage.isEmpty)
+                      ? Text(
+                          widget.callerName.isNotEmpty ? widget.callerName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
               ),
             ),
