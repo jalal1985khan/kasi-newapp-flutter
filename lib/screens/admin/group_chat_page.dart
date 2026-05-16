@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
@@ -297,27 +298,136 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
-  void _sendMessage({String type = 'text', String? content}) {
+  void _sendMessage({
+    String type = 'text',
+    String? content,
+    String? caption,
+    String? fileName,
+    String? localPath,
+    MessageUploadStatus uploadStatus = MessageUploadStatus.success,
+    double uploadProgress = 1.0,
+    String? existingTempId,
+  }) {
     final text = content ?? _messageController.text.trim();
     if (text.isEmpty && type == 'text') return;
 
-    if (type == 'text' && content == null) {
-      // Quietly send
+    final tempId = existingTempId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+
+    if (type == 'text' && existingTempId == null) {
+      _messageController.clear();
+      _typingTimer?.cancel();
+      socket.emit('group:typing:stop', {'groupId': widget.groupId});
     }
 
-    if (type == 'text') _messageController.clear();
-    setState(() {});
+    if (existingTempId == null) {
+      // Optimistic update
+      final optimisticMsg = ChatMessage(
+        id: tempId,
+        conversationId: widget.groupId, // Use groupId as conversationId for groups
+        senderId: _currentUserId ?? '',
+        receiverId: '', // Groups don't have a single receiver
+        type: type,
+        content: text,
+        fileName: fileName,
+        isRead: false,
+        deletedFor: [],
+        createdAt: DateTime.now(),
+        senderName: 'You',
+        caption: caption,
+        localPath: localPath,
+        uploadStatus: uploadStatus,
+        uploadProgress: uploadProgress,
+      );
+      setState(() {
+        _messages.insert(0, optimisticMsg);
+      });
+    } else {
+      // Update existing optimistic message status
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == existingTempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: uploadStatus,
+            uploadProgress: uploadProgress,
+            content: text,
+            type: type,
+          );
+        }
+      });
+    }
 
-    _typingTimer?.cancel();
-    socket.emit('group:typing:stop', {'groupId': widget.groupId});
+    if (uploadStatus == MessageUploadStatus.success) {
+      socket.emit('group:message:send', {
+        'groupId': widget.groupId,
+        'content': text,
+        'type': type,
+        'caption': caption,
+        'fileName': fileName,
+        'tempId': tempId,
+      });
+    }
+  }
 
-    socket.emit('group:message:send', {
-      'groupId': widget.groupId,
-      'content': text,
-      'type': type,
-      'caption': content != null ? null : null, // This function is simplified, but I'll add the keys anyway
-      'tempId': 'temp_${DateTime.now().millisecondsSinceEpoch}',
-    });
+  Future<void> _uploadAndSend(String path, String caption, String type, {String? id}) async {
+    final tempId = id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // First, show optimistically
+    if (id == null) {
+      _sendMessage(
+        type: type,
+        content: '',
+        caption: caption,
+        fileName: p.basename(path),
+        localPath: path,
+        uploadStatus: MessageUploadStatus.uploading,
+        uploadProgress: 0.0,
+        existingTempId: tempId,
+      );
+    } else {
+      _setUploadStatus(tempId, MessageUploadStatus.uploading, 0.0);
+    }
+
+    try {
+      final uploadRes = await _chatService.uploadMedia(
+        path,
+        onSendProgress: (sent, total) {
+          if (mounted) {
+            _setUploadStatus(tempId, MessageUploadStatus.uploading, sent / total);
+          }
+        },
+      );
+
+      if (uploadRes['success'] == true) {
+        _sendMessage(
+          type: uploadRes['type'] ?? type,
+          content: uploadRes['url'],
+          caption: caption,
+          fileName: p.basename(path),
+          localPath: path,
+          uploadStatus: MessageUploadStatus.success,
+          uploadProgress: 1.0,
+          existingTempId: tempId,
+        );
+      } else {
+        _setUploadStatus(tempId, MessageUploadStatus.error, 0.0);
+      }
+    } catch (e) {
+      _setUploadStatus(tempId, MessageUploadStatus.error, 0.0);
+    }
+  }
+
+  void _setUploadStatus(String tempId, MessageUploadStatus status, double progress) {
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: status,
+            uploadProgress: progress,
+          );
+        }
+      });
+    }
   }
 
   void _startRecording() async {
@@ -693,10 +803,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 isMe: isMe,
                                 onLongPress: (msg) => _showMessageOptions(msg),
                                 userName: msg.senderName ?? 'User',
-                                userRole: msg.senderRole,
+                                userRole: _userRole,
                                 isHighlighted: _highlightedMessageId == msg.id,
                                 onReplyTap: _scrollToMessage,
-                                onUploadRetry: (p, c, t, id) => _uploadAndSend(p, c, t, id: id),
+                                onUploadRetry: (path, caption, type, id) => _uploadAndSend(path, caption, type, id: id),
                               ),
                             ),
                           ],
