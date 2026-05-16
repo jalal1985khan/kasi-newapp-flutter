@@ -340,7 +340,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                 radius: 32,
                 backgroundColor: Colors.white.withOpacity(0.9),
                 backgroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
-                    ? NetworkImage(user.profileImage!)
+                    ? NetworkImage(AuthService().getFullUrl(user.profileImage!)!)
                     : null,
                 child: _isUploadingImage
                     ? const CircularProgressIndicator(color: Color(0xFF00A884))

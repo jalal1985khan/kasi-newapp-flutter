@@ -1147,7 +1147,7 @@ class _GroupChatBubble extends StatelessWidget {
                   radius: 16,
                   backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
                   backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
-                      ? NetworkImage(message.senderProfileImage!)
+                      ? NetworkImage(AuthService().getFullUrl(message.senderProfileImage!)!)
                       : null,
                   child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
                       ? Text(

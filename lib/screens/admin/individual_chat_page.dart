@@ -793,7 +793,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(20),
                           child:
-                              Image.network(widget.avatar, fit: BoxFit.cover),
+                              Image.network(AuthService().getFullUrl(widget.avatar)!, fit: BoxFit.cover),
                         )
                       : Text(
                           widget.name[0].toUpperCase(),
@@ -861,7 +861,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
               CallOverlayManager.show(
                 context,
                 widget.name,
-                widget.avatar,
+                AuthService().getFullUrl(widget.avatar) ?? '',
                 widget.receiverId!,
               );
             }
@@ -1905,7 +1905,7 @@ class _ChatBubble extends StatelessWidget {
                     radius: 16,
                     backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
                     backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
-                        ? NetworkImage(message.senderProfileImage!)
+                        ? NetworkImage(AuthService().getFullUrl(message.senderProfileImage!)!)
                         : null,
                     child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
                         ? Text(

@@ -218,7 +218,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                                     conversationId: convId,
                                     name: partner['name'],
                                     otherUserId: partner['_id'],
-                                    avatar: partner['profileImage'],
+                                    avatar: AuthService().getFullUrl(partner['profileImage']),
                                   ),
                               ),
                             );
@@ -294,7 +294,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                       trailing: const Icon(Icons.call, color: Color(0xFF00A884)),
                       onTap: () {
                         Navigator.pop(context);
-                        CallOverlayManager.show(context, partner['name'], '', partner['_id']);
+                        CallOverlayManager.show(context, partner['name'], AuthService().getFullUrl(partner['profileImage']) ?? '', partner['_id']);
                       },
                     );
                   },
@@ -493,7 +493,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               radius: 28,
               backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
               backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
-                  ? NetworkImage(group['profileImage'])
+                  ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
                   : null,
               child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
                   ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
@@ -521,7 +521,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                 radius: 28,
                 backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
                 backgroundImage: (admin.profileImage != null && admin.profileImage!.isNotEmpty)
-                    ? NetworkImage(admin.profileImage!)
+                    ? NetworkImage(AuthService().getFullUrl(admin.profileImage)!)
                     : null,
                 child: (admin.profileImage == null || admin.profileImage!.isEmpty)
                     ? Text(
@@ -537,7 +537,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
           subtitle: Text(conv.lastMessage?.content ?? 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
           trailing: _buildTrailing(conv.unreadCount, conv.updatedAt?.toIso8601String(), subTextColor),
           onTap: () async {
-            await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name, avatar: admin.profileImage)));
+            await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name, avatar: AuthService().getFullUrl(admin.profileImage))));
             _loadData(silent: true);
           },
         );
@@ -575,7 +575,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
             radius: 28,
             backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
             backgroundImage: (otherUser.profileImage != null && otherUser.profileImage!.isNotEmpty)
-                ? NetworkImage(otherUser.profileImage!)
+                ? NetworkImage(AuthService().getFullUrl(otherUser.profileImage)!)
                 : null,
             child: (otherUser.profileImage == null || otherUser.profileImage!.isEmpty)
                 ? Text(
@@ -596,7 +596,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               Text(DateFormat('MMMM d, h:mm a').format(log.createdAt.toLocal()), style: TextStyle(color: subTextColor, fontSize: 14)),
             ],
           ),
-          trailing: IconButton(icon: const Icon(Icons.call, color: Color(0xFF00A884)), onPressed: () => CallOverlayManager.show(context, otherUser.name, '', otherUser.id)),
+          trailing: IconButton(icon: const Icon(Icons.call, color: Color(0xFF00A884)), onPressed: () => CallOverlayManager.show(context, otherUser.name, AuthService().getFullUrl(otherUser.profileImage) ?? '', otherUser.id)),
         );
       },
     );

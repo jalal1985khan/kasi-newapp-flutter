@@ -12,9 +12,28 @@ import '../screens/general_pages/splash_screen.dart';
 import 'package:flutter/material.dart';
 
 class AuthService {
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
+
   final Dio _dio = DioClient().dio;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final FCMService _fcmService = FCMService();
+
+  static final ValueNotifier<Map<String, dynamic>?> userNotifier = ValueNotifier(null);
+
+  Future<void> init() async {
+    final user = await getUser();
+    userNotifier.value = user;
+  }
+
+  String? getFullUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http')) return path;
+    // Remove leading slash if present and combine with base URL
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return '${ApiConstants.baseUrl}$cleanPath';
+  }
 
   Future<Map<String, dynamic>> login(
     String identifier,
@@ -62,11 +81,12 @@ class AuthService {
       await Future.wait([
         _secureStorage.write(key: 'accessToken', value: data.accessToken),
         _secureStorage.write(key: 'refreshToken', value: data.refreshToken),
-        SharedPreferences.getInstance().then((prefs) {
-          return prefs.setString(
+        SharedPreferences.getInstance().then((prefs) async {
+          await prefs.setString(
             'signedinuser',
             jsonEncode(data.user?.toJson()),
           );
+          userNotifier.value = data.user?.toJson();
         }),
       ]);
 
@@ -186,6 +206,29 @@ class AuthService {
     return null;
   }
 
+  Future<Map<String, dynamic>> fetchUserProfile() async {
+    try {
+      final token = await getAccessToken();
+      final response = await _dio.get(
+        ApiConstants.userProfile,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        final userData = response.data['user'];
+        if (userData != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('signedinuser', jsonEncode(userData));
+          userNotifier.value = userData;
+          return {'success': true, 'user': userData};
+        }
+      }
+      return {'success': false, 'message': 'Failed to fetch profile'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   Future<Map<String, dynamic>> changePassword({
     required String oldPassword,
     required String newPassword,
@@ -248,6 +291,7 @@ class AuthService {
           if (email != null) userJson['email'] = email;
           if (profileImage != null) userJson['profileImage'] = profileImage;
           await prefs.setString('signedinuser', jsonEncode(userJson));
+          userNotifier.value = userJson;
         }
 
         return {

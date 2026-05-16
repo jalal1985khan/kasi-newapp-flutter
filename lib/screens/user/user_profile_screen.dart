@@ -46,7 +46,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _onRefresh() async {
-    await _loadUserDetails();
+    await AuthService().fetchUserProfile();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile reloaded'), backgroundColor: Color(0xFF00A884)),
@@ -390,101 +390,115 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            // ── PROFILE HEADER ──────────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF111B21) : Colors.white,
-                border: Border(bottom: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
-              ),
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF00A884), width: 2),
-                        ),
-                          child: CircleAvatar(
-                            radius: 50,
-                            backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
-                            backgroundImage: _user?.profileImage != null && _user!.profileImage!.isNotEmpty
-                                ? NetworkImage(_user!.profileImage!)
-                                : null,
-                            child: _isUploadingImage
-                                ? const CircularProgressIndicator(color: Colors.white)
-                                : (_user?.profileImage == null || _user!.profileImage!.isEmpty
-                                    ? Text(
-                                        _user?.name.isNotEmpty == true ? _user!.name[0].toUpperCase() : '?',
-                                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
-                                      )
-                                    : null),
-                          ),
+            ValueListenableBuilder<Map<String, dynamic>?>(
+              valueListenable: AuthService.userNotifier,
+              builder: (context, user, child) {
+                return Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF111B21) : Colors.white,
+                        border: Border(bottom: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
                       ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _pickAndUploadImage,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(color: Color(0xFF00A884), shape: BoxShape.circle),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                      child: Column(
+                        children: [
+                          Stack(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFF00A884), width: 2),
+                                ),
+                                child: CircleAvatar(
+                                  radius: 50,
+                                  backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
+                                  backgroundImage: user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty
+                                      ? NetworkImage("${AuthService().getFullUrl(user['profileImage'])}?t=${DateTime.now().millisecondsSinceEpoch}")
+                                      : null,
+                                  child: _isUploadingImage
+                                      ? const CircularProgressIndicator(color: Colors.white)
+                                      : (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty
+                                          ? Text(
+                                              user?['name'] != null && user!['name'].toString().isNotEmpty ? user['name'].toString()[0].toUpperCase() : '?',
+                                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
+                                            )
+                                          : null),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: _pickAndUploadImage,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(color: Color(0xFF00A884), shape: BoxShape.circle),
+                                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          Text(
+                            user?['name'] ?? 'Loading...',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?['email'] ?? '...',
+                            style: TextStyle(fontSize: 14, color: subTextColor),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00A884).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'ACTIVE EMPLOYEE',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF00A884), letterSpacing: 1),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _user?.name ?? 'Loading...',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _user?.email ?? '...',
-                    style: TextStyle(fontSize: 14, color: subTextColor),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00A884).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      'ACTIVE EMPLOYEE',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF00A884), letterSpacing: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ACCOUNT INFORMATION',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSectionCard(
+                            isDark,
+                            [
+                              _buildDetailRow('Display Name', user?['name'] ?? '...', textColor, subTextColor, Icons.person_outline),
+                              _buildDetailRow('Email ID', user?['email'] ?? '...', textColor, subTextColor, Icons.mail_outline),
+                              _buildDetailRow('Username', user?['username'] ?? '...', textColor, subTextColor, Icons.alternate_email),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
 
-            // ── DETAILS SECTION ─────────────────────────────────────────────
+            // ── SECURITY SECTION ─────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'ACCOUNT INFORMATION',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSectionCard(
-                    isDark,
-                    [
-                      _buildDetailRow('Display Name', _user?.name ?? '...', textColor, subTextColor, Icons.person_outline),
-                      _buildDetailRow('Email ID', _user?.email ?? '...', textColor, subTextColor, Icons.mail_outline),
-                      _buildDetailRow('Username', _user?.username ?? '...', textColor, subTextColor, Icons.alternate_email),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 32),
                   Text(
                     'SECURITY',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
@@ -505,7 +519,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 40),
                   Center(
                     child: Text(

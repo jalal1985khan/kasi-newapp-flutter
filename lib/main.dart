@@ -44,6 +44,9 @@ void main() async {
   // 2. Initialize FCM (Permissions + Listeners + Token sync)
   await FCMService().init();
 
+  // 3. Initialize AuthService (User profile sync)
+  await AuthService().init();
+
   runApp(
     MultiProvider(
       providers: [

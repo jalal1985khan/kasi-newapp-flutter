@@ -38,14 +38,13 @@ class _AdminDrawerState extends State<AdminDrawer> {
       backgroundColor: isDark ? waDarkBg : Colors.white,
       child: Column(
         children: [
-          FutureBuilder<Map<String, dynamic>?>(
-            future: authService.getUser(),
-            builder: (context, snapshot) {
-              final user = snapshot.data;
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: AuthService.userNotifier,
+            builder: (context, user, child) {
               return UserAccountsDrawerHeader(
                 accountName: Text(
                   user?['name'] ?? 'Admin User',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 accountEmail: Text(
                   user?['email'] ?? 'admin@user.com',
@@ -53,8 +52,8 @@ class _AdminDrawerState extends State<AdminDrawer> {
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: waTeal,
-                  backgroundImage: (user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty)
-                      ? NetworkImage(user['profileImage'])
+                  backgroundImage: user?['profileImage'] != null && user!['profileImage'].toString().isNotEmpty
+                      ? NetworkImage("${AuthService().getFullUrl(user['profileImage'])}?t=${DateTime.now().millisecondsSinceEpoch}")
                       : null,
                   child: (user?['profileImage'] == null || user!['profileImage'].toString().isEmpty)
                       ? Text(

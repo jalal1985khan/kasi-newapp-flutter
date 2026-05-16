@@ -649,7 +649,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                 child: widget.avatar != null && widget.avatar!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(widget.avatar!, fit: BoxFit.cover),
+                        child: Image.network(AuthService().getFullUrl(widget.avatar)!, fit: BoxFit.cover),
                       )
                     : Text(widget.name[0].toUpperCase(), style: const TextStyle(color: Colors.white70)),
               ),
@@ -690,7 +690,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       extraActions: [
         IconButton(
           icon: const Icon(Icons.call),
-          onPressed: () => CallOverlayManager.show(context, widget.name, widget.avatar ?? '', widget.otherUserId),
+          onPressed: () => CallOverlayManager.show(context, widget.name, AuthService().getFullUrl(widget.avatar) ?? '', widget.otherUserId),
         ),
       ],
       body: Stack(
@@ -1312,7 +1312,7 @@ class _ChatBubble extends StatelessWidget {
                     radius: 16,
                     backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
                     backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
-                        ? NetworkImage(message.senderProfileImage!)
+                        ? NetworkImage(AuthService().getFullUrl(message.senderProfileImage!)!)
                         : null,
                     child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
                         ? Text(

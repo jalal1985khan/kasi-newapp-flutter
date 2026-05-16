@@ -281,7 +281,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                                     MaterialPageRoute(
                                       builder: (context) => IndividualChatPage(
                                         name: partner['name'],
-                                        avatar: partner['profileImage'] ?? '',
+                                        avatar: AuthService().getFullUrl(partner['profileImage']) ?? '',
                                         conversationId: convId,
                                         receiverId: partner['_id'],
                                       ),
@@ -371,7 +371,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                         CallOverlayManager.show(
                           context,
                           partner['name'],
-                          '',
+                          AuthService().getFullUrl(partner['profileImage']) ?? '',
                           partner['_id'],
                         );
                       },
@@ -566,7 +566,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                 radius: 28,
                 backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
                 backgroundImage: (otherUser.profileImage != null && otherUser.profileImage!.isNotEmpty)
-                    ? NetworkImage(otherUser.profileImage!)
+                    ? NetworkImage(AuthService().getFullUrl(otherUser.profileImage)!)
                     : null,
                 child: (otherUser.profileImage == null || otherUser.profileImage!.isEmpty)
                     ? Text(
@@ -607,7 +607,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                   CallOverlayManager.show(
                     context,
                     otherUser.name,
-                    '', // Avatar not available in call logs
+                    AuthService().getFullUrl(otherUser.profileImage) ?? '',
                     otherUser.id,
                   );
                 },
@@ -857,7 +857,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               radius: 28,
               backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
               backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
-                  ? NetworkImage(group['profileImage'])
+                  ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
                   : null,
               child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
                   ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
@@ -946,7 +946,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                 radius: 28,
                 backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
                 backgroundImage: (otherParticipant.profileImage != null && otherParticipant.profileImage!.isNotEmpty)
-                    ? NetworkImage(otherParticipant.profileImage!)
+                    ? NetworkImage(AuthService().getFullUrl(otherParticipant.profileImage)!)
                     : null,
                 child: (otherParticipant.profileImage == null || otherParticipant.profileImage!.isEmpty)
                     ? Text(
@@ -1026,7 +1026,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               MaterialPageRoute(
                 builder: (context) => IndividualChatPage(
                   name: otherParticipant.name,
-                  avatar: otherParticipant.profileImage ?? '',
+                  avatar: AuthService().getFullUrl(otherParticipant.profileImage) ?? '',
                   conversationId: conversation.id,
                   receiverId: otherParticipant.id,
                 ),

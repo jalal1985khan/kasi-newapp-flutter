@@ -367,7 +367,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                       radius: 60,
                       backgroundColor: Colors.white24,
                       backgroundImage: (widget.avatar.isNotEmpty)
-                          ? NetworkImage(widget.avatar)
+                          ? NetworkImage(AuthService().getFullUrl(widget.avatar)!)
                           : null,
                       child: (widget.avatar.isEmpty)
                           ? Text(
@@ -497,7 +497,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                   radius: 24,
                   backgroundColor: Colors.white24,
                   backgroundImage: (widget.avatar.isNotEmpty)
-                      ? NetworkImage(widget.avatar)
+                      ? NetworkImage(AuthService().getFullUrl(widget.avatar)!)
                       : null,
                   child: (widget.avatar.isEmpty)
                       ? Text(
@@ -861,7 +861,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                   radius: 60,
                   backgroundColor: Colors.blueAccent.withOpacity(0.3),
                   backgroundImage: (widget.callerImage.isNotEmpty)
-                      ? NetworkImage(widget.callerImage)
+                      ? NetworkImage(AuthService().getFullUrl(widget.callerImage)!)
                       : null,
                   child: (widget.callerImage.isEmpty)
                       ? Text(

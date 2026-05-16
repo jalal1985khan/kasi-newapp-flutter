@@ -160,7 +160,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                       : _currentAvatar != null && _currentAvatar!.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(80),
-                              child: Image.network(_currentAvatar!, fit: BoxFit.cover, width: 160, height: 160),
+                              child: Image.network(AuthService().getFullUrl(_currentAvatar)!, fit: BoxFit.cover, width: 160, height: 160),
                             )
                           : Text(
                               widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',

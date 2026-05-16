@@ -252,7 +252,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                 radius: 50,
                 backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
                 backgroundImage: (_group != null && _group!['profileImage'] != null && _group!['profileImage'].toString().isNotEmpty)
-                    ? NetworkImage(_group!['profileImage'])
+                    ? NetworkImage(AuthService().getFullUrl(_group!['profileImage'].toString())!)
                     : null,
                 child: (_group == null || _group!['profileImage'] == null || _group!['profileImage'].toString().isEmpty)
                     ? Icon(Icons.groups, size: 50, color: isDark ? Colors.white54 : Colors.grey[400])
@@ -290,7 +290,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                     leading: CircleAvatar(
                       backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
                       backgroundImage: (userData != null && userData['profileImage'] != null && userData['profileImage'].toString().isNotEmpty)
-                          ? NetworkImage(userData['profileImage'])
+                          ? NetworkImage(AuthService().getFullUrl(userData['profileImage'].toString())!)
                           : null,
                       child: (userData == null || userData['profileImage'] == null || userData['profileImage'].toString().isEmpty)
                           ? Text(name[0].toUpperCase(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black45))
