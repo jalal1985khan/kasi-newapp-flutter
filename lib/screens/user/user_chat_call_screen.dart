@@ -545,6 +545,27 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
     );
   }
 
+  String? _getEffectiveProfileImage(CallUser user) {
+    if (user.profileImage != null && user.profileImage!.isNotEmpty) {
+      return user.profileImage;
+    }
+    // Fallback: search in conversations list
+    try {
+      for (var item in _conversations) {
+        if (item['type'] == 'individual') {
+          final conv = item['data'] as Conversation;
+          final partner = conv.participants.firstWhere((p) => p.id == user.id, orElse: () => Participant(id: '', name: '', email: '', role: '', fcmToken: ''));
+          if (partner.id.isNotEmpty && partner.profileImage != null && partner.profileImage!.isNotEmpty) {
+            return partner.profileImage;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return null;
+  }
+
   Widget _buildCallList(bool isDark) {
     var filteredLogs = _callLogs;
     if (_searchQuery.isNotEmpty) {
@@ -568,16 +589,17 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
         final isOutgoing = _currentUserId == log.caller.id;
         final bool isMissed = ['missed', 'rejected', 'failed'].contains(log.status);
         final otherUser = isOutgoing ? log.receiver : log.caller;
+        final String? effectiveImage = _getEffectiveProfileImage(otherUser);
 
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: CircleAvatar(
             radius: 28,
             backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-            backgroundImage: (otherUser.profileImage != null && otherUser.profileImage!.isNotEmpty)
-                ? NetworkImage(AuthService().getFullUrl(otherUser.profileImage)!)
+            backgroundImage: (effectiveImage != null && effectiveImage.isNotEmpty)
+                ? NetworkImage(AuthService().getFullUrl(effectiveImage)!)
                 : null,
-            child: (otherUser.profileImage == null || otherUser.profileImage!.isEmpty)
+            child: (effectiveImage == null || effectiveImage.isEmpty)
                 ? Text(
                     otherUser.name.isNotEmpty ? otherUser.name[0].toUpperCase() : '?',
                     style: TextStyle(
@@ -596,7 +618,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               Text(DateFormat('MMMM d, h:mm a').format(log.createdAt.toLocal()), style: TextStyle(color: subTextColor, fontSize: 14)),
             ],
           ),
-          trailing: IconButton(icon: const Icon(Icons.call, color: Color(0xFF00A884)), onPressed: () => CallOverlayManager.show(context, otherUser.name, AuthService().getFullUrl(otherUser.profileImage) ?? '', otherUser.id)),
+          trailing: IconButton(icon: const Icon(Icons.call, color: Color(0xFF00A884)), onPressed: () => CallOverlayManager.show(context, otherUser.name, AuthService().getFullUrl(effectiveImage) ?? '', otherUser.id)),
         );
       },
     );

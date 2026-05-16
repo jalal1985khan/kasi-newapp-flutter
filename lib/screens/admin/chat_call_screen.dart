@@ -531,6 +531,25 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   );
 }
 
+  String? _getEffectiveProfileImage(CallUser user) {
+    if (user.profileImage != null && user.profileImage!.isNotEmpty) {
+      return user.profileImage;
+    }
+    // Fallback: search in partners list
+    try {
+      final partner = _partners.firstWhere(
+        (p) => p['_id'] == user.id || p['id'] == user.id,
+        orElse: () => null,
+      );
+      if (partner != null && partner['profileImage'] != null && partner['profileImage'].toString().isNotEmpty) {
+        return partner['profileImage'].toString();
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return null;
+  }
+
   Widget _buildCallList() {
     var filteredLogs = _callLogs;
     if (_searchQuery.isNotEmpty) {
@@ -559,16 +578,17 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
             final bool isMissed = ['missed', 'rejected', 'failed'].contains(log.status);
             
             final otherUser = isOutgoing ? log.receiver : log.caller;
+            final String? effectiveImage = _getEffectiveProfileImage(otherUser);
             
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               leading: CircleAvatar(
                 radius: 28,
                 backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-                backgroundImage: (otherUser.profileImage != null && otherUser.profileImage!.isNotEmpty)
-                    ? NetworkImage(AuthService().getFullUrl(otherUser.profileImage)!)
+                backgroundImage: (effectiveImage != null && effectiveImage.isNotEmpty)
+                    ? NetworkImage(AuthService().getFullUrl(effectiveImage)!)
                     : null,
-                child: (otherUser.profileImage == null || otherUser.profileImage!.isEmpty)
+                child: (effectiveImage == null || effectiveImage.isEmpty)
                     ? Text(
                         otherUser.name.isNotEmpty ? otherUser.name[0].toUpperCase() : '?',
                         style: TextStyle(
@@ -607,7 +627,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                   CallOverlayManager.show(
                     context,
                     otherUser.name,
-                    AuthService().getFullUrl(otherUser.profileImage) ?? '',
+                    AuthService().getFullUrl(effectiveImage) ?? '',
                     otherUser.id,
                   );
                 },
