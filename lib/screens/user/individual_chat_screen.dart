@@ -1690,8 +1690,15 @@ class _AudioBubblePlayerState extends State<_AudioBubblePlayer> {
                     thumbColor: primaryColor,
                   ),
                   child: Slider(
-                    value: _position.inMilliseconds.toDouble(),
-                    max: _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1.0,
+                    value: _position.inMilliseconds.toDouble().clamp(
+                          0.0,
+                          _duration.inMilliseconds > 0
+                              ? _duration.inMilliseconds.toDouble()
+                              : 1.0,
+                        ),
+                    max: _duration.inMilliseconds > 0
+                        ? _duration.inMilliseconds.toDouble()
+                        : 1.0,
                     onChanged: (value) {
                       _player.seek(Duration(milliseconds: value.toInt()));
                     },

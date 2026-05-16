@@ -1521,7 +1521,12 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
                     thumbColor: primaryColor,
                   ),
                   child: Slider(
-                    value: _position.inMilliseconds.toDouble(),
+                    value: _position.inMilliseconds.toDouble().clamp(
+                          0.0,
+                          _duration.inMilliseconds > 0
+                              ? _duration.inMilliseconds.toDouble()
+                              : 1.0,
+                        ),
                     max: _duration.inMilliseconds > 0
                         ? _duration.inMilliseconds.toDouble()
                         : 1.0,
