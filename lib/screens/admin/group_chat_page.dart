@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -62,6 +63,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   String? _userRole;
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
+  final Map<String, GlobalKey> _messageKeys = {};
+  String? _highlightedMessageId;
 
   SocketService get socket => SocketService();
 
@@ -91,6 +94,60 @@ class _GroupChatPageState extends State<GroupChatPage> {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _scrollToMessage(String messageId) {
+    final key = _messageKeys[messageId];
+    if (key != null && key.currentContext != null) {
+      Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+      setState(() => _highlightedMessageId = messageId);
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _highlightedMessageId = null);
+      });
+    }
+  }
+
+  void _showMessageOptions(ChatMessage message) {
+    final bool isMe = message.senderId == _currentUserId;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF222D34) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isMe)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Message', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteMessage(message.id);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Text'),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: message.content));
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _setupSocket() {
@@ -922,59 +979,148 @@ class _GroupChatPageState extends State<GroupChatPage> {
 class _GroupChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
+  final Function(ChatMessage) onLongPress;
+  final bool isHighlighted;
+  final Function(String)? onReplyTap;
+  final Function(String, String, String, String)? onUploadRetry;
+  final String userName;
   final String? userRole;
 
   const _GroupChatBubble({
+    super.key,
     required this.message, 
-    required this.isMe,
+    required this.isMe, 
+    required this.onLongPress,
+    required this.userName,
     this.userRole,
+    this.isHighlighted = false,
+    this.onReplyTap,
+    this.onUploadRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // WhatsApp Premium Colors
     final Color bubbleMe = isDark ? const Color(0xFF005C4B) : const Color(0xFFE7FFDB);
     final Color bubbleOther = isDark ? const Color(0xFF232D36) : Colors.white;
+    final Color highlightColor = isDark ? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.08);
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color senderColor = isDark ? Colors.blueAccent[100]! : Colors.blueAccent[700]!;
+    final Color subTextColor = isDark ? Colors.white54 : (Colors.grey[600] ?? Colors.grey);
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isMe ? bubbleMe : bubbleOther,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(12),
-            topRight: const Radius.circular(12),
-            bottomLeft: isMe ? const Radius.circular(12) : const Radius.circular(0),
-            bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      color: isHighlighted ? highlightColor : Colors.transparent,
+      child: GestureDetector(
+        onLongPress: () => onLongPress(message),
+        child: Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isMe ? bubbleMe : bubbleOther,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(15),
+                  topRight: const Radius.circular(15),
+                  bottomLeft: isMe ? const Radius.circular(15) : const Radius.circular(5),
+                  bottomRight: isMe ? const Radius.circular(5) : const Radius.circular(15),
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        message.senderName ?? 'Member',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: senderColor,
+                        ),
+                      ),
+                    ),
+                  _buildReplyContext(isDark),
+                  _buildContent(context, textColor),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const SizedBox(width: 20),
+                      Text(
+                        DateFormat('hh:mm a').format(message.createdAt.toLocal()),
+                        style: TextStyle(fontSize: 10, color: subTextColor),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+      ),
+    );
+  }
+
+  Widget _buildReplyContext(bool isDark) {
+    if (message.replyToContent == null) return const SizedBox.shrink();
+
+    final Color barColor = const Color(0xFF53BDEB);
+    return GestureDetector(
+      onTap: () {
+        if (message.replyTo != null && onReplyTap != null) {
+          onReplyTap!(message.replyTo!);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black26 : Colors.black.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isMe)
-              Text(
-                message.senderName ?? 'Member',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: senderColor,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Container(width: 4, color: barColor),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message.replyToSenderName ?? 'Member',
+                          style: TextStyle(color: barColor, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          message.replyToContent!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            const SizedBox(height: 2),
-            _buildContent(context, textColor),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('hh:mm a').format(message.createdAt.toLocal()),
-              style: TextStyle(fontSize: 10, color: isDark ? Colors.white54 : Colors.grey),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
