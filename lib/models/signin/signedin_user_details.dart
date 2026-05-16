@@ -39,6 +39,7 @@ class User {
   final String tenantId;
   final String? employeeId;
   final bool isActive;
+  final String? profileImage;
 
 
 
@@ -51,6 +52,7 @@ class User {
     required this.tenantId,
     this.employeeId,
     required this.isActive,
+    this.profileImage,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -63,6 +65,7 @@ class User {
       tenantId: json['tenantId'] ?? '',
       employeeId: json['employeeId'],
       isActive: json['isActive'] ?? false,
+      profileImage: json['profileImage'],
     );
   }
 
@@ -76,6 +79,7 @@ class User {
       'tenantId': tenantId,
       'employeeId': employeeId,
       'isActive': isActive,
+      'profileImage': profileImage,
     };
   }
 }

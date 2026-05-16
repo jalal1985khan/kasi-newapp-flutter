@@ -30,6 +30,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   double _totalValue = 0;
   
   bool _isLoading = true;
+  bool _isUploadingImage = false;
   bool _isFetchingMore = false;
   int _currentPage = 1;
   bool _hasMore = true;
@@ -105,6 +106,49 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Future<void> _onRefresh() async {
     await _loadInitialData();
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    if (mounted) setState(() => _isUploadingImage = true);
+
+    try {
+      final uploadResult = await AuthService().uploadProfileImage(image.path);
+      if (uploadResult['success'] == true) {
+        final imageUrl = uploadResult['url'];
+        final updateResult = await AuthService().updateProfile(profileImage: imageUrl);
+        
+        if (updateResult['success'] == true) {
+          await _loadInitialData();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profile image updated'), backgroundColor: Color(0xFF25D366)),
+            );
+          }
+        } else {
+          throw Exception(updateResult['message']);
+        }
+      } else {
+        throw Exception(uploadResult['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
   }
 
   Future<void> _captureAndSaveRecord(int index, User user) async {
@@ -285,15 +329,25 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-            child: CircleAvatar(
-              radius: 32,
-              backgroundColor: Colors.white.withOpacity(0.9),
-              child: Text(
-                user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                style: const TextStyle(color: Color(0xFF00A884), fontSize: 28, fontWeight: FontWeight.bold),
+          GestureDetector(
+            onTap: _pickAndUploadImage,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+              child: CircleAvatar(
+                radius: 32,
+                backgroundColor: Colors.white.withOpacity(0.9),
+                backgroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
+                    ? NetworkImage(user.profileImage!)
+                    : null,
+                child: _isUploadingImage
+                    ? const CircularProgressIndicator(color: Color(0xFF00A884))
+                    : (user.profileImage == null || user.profileImage!.isEmpty
+                        ? Text(
+                            user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                            style: const TextStyle(color: Color(0xFF00A884), fontSize: 28, fontWeight: FontWeight.bold),
+                          )
+                        : null),
               ),
             ),
           ),

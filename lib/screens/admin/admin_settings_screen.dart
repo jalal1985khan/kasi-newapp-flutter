@@ -25,6 +25,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _loadUserDetails();
   }
 
+  bool _isUploadingImage = false;
+
   Future<void> _loadUserDetails() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString('signedinuser');
@@ -194,6 +196,49 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     );
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    if (mounted) setState(() => _isUploadingImage = true);
+
+    try {
+      final uploadResult = await AuthService().uploadProfileImage(image.path);
+      if (uploadResult['success'] == true) {
+        final imageUrl = uploadResult['url'];
+        final updateResult = await AuthService().updateProfile(profileImage: imageUrl);
+        
+        if (updateResult['success'] == true) {
+          await _loadUserDetails();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profile image updated'), backgroundColor: Color(0xFF25D366)),
+            );
+          }
+        } else {
+          throw Exception(updateResult['message']);
+        }
+      } else {
+        throw Exception(uploadResult['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
   void _showEditDetailsDialog() {
     final nameCtrl = TextEditingController(text: _user?.name ?? '');
     final emailCtrl = TextEditingController(text: _user?.email ?? '');
@@ -358,26 +403,33 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: const Color(0xFF00A884), width: 2),
                         ),
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
-                          child: Text(
-                            _user?.name.isNotEmpty == true ? _user!.name[0].toUpperCase() : '?',
-                            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
+                            backgroundImage: _user?.profileImage != null && _user!.profileImage!.isNotEmpty
+                                ? NetworkImage(_user!.profileImage!)
+                                : null,
+                            child: _isUploadingImage
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : (_user?.profileImage == null || _user!.profileImage!.isEmpty
+                                    ? Text(
+                                        _user?.name.isNotEmpty == true ? _user!.name[0].toUpperCase() : '?',
+                                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
+                                      )
+                                    : null),
                           ),
-                        ),
                       ),
                       Positioned(
                         bottom: 0,
                         right: 0,
-                        child: GestureDetector(
-                          onTap: _showEditDetailsDialog,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(color: Color(0xFF00A884), shape: BoxShape.circle),
-                            child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                          child: GestureDetector(
+                            onTap: _pickAndUploadImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(color: Color(0xFF00A884), shape: BoxShape.circle),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                            ),
                           ),
-                        ),
                       ),
                     ],
                   ),

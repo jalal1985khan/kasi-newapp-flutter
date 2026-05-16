@@ -219,4 +219,81 @@ class AuthService {
       return {'success': false, 'message': errorMessage};
     }
   }
+
+  Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? email,
+    String? profileImage,
+  }) async {
+    try {
+      final token = await getAccessToken();
+      final response = await _dio.patch(
+        ApiConstants.userProfile,
+        data: {
+          if (name != null) 'name': name,
+          if (email != null) 'email': email,
+          if (profileImage != null) 'profileImage': profileImage,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        // Update local session data
+        final prefs = await SharedPreferences.getInstance();
+        final userStr = prefs.getString('signedinuser');
+        if (userStr != null) {
+          final userJson = jsonDecode(userStr);
+          if (name != null) userJson['name'] = name;
+          if (email != null) userJson['email'] = email;
+          if (profileImage != null) userJson['profileImage'] = profileImage;
+          await prefs.setString('signedinuser', jsonEncode(userJson));
+        }
+
+        return {
+          'success': true,
+          'message': response.data['message'] ?? 'Profile updated successfully',
+          'user': response.data['user'],
+        };
+      }
+      return {
+        'success': false,
+        'message': response.data['error'] ?? 'Failed to update profile',
+      };
+    } catch (e) {
+      String errorMessage = 'Failed to update profile';
+      if (e is DioException) {
+        errorMessage = e.response?.data['error'] ?? errorMessage;
+      }
+      return {'success': false, 'message': errorMessage};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadProfileImage(String filePath) async {
+    try {
+      final token = await getAccessToken();
+      final fileName = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        ApiConstants.uploadCloudinary,
+        data: formData,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'url': response.data['url'],
+        };
+      }
+      return {
+        'success': false,
+        'message': response.data['error'] ?? 'Upload failed',
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }
