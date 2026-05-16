@@ -51,6 +51,8 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   late final Function(dynamic) _messageReceiveHandler;
   late final Function(dynamic) _messageSentHandler;
   late final Function(dynamic) _groupMessageReceiveHandler;
+  late final Function(dynamic) _conversationUpdateHandler;
+  late final Function(dynamic) _groupUpdateHandler;
 
   @override
   void initState() {
@@ -111,6 +113,12 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _groupMessageReceiveHandler = (data) {
       if (mounted) _loadData(silent: true);
     };
+    _conversationUpdateHandler = (data) {
+      if (mounted) _loadData(silent: true);
+    };
+    _groupUpdateHandler = (data) {
+      if (mounted) _loadData(silent: true);
+    };
   }
 
   @override
@@ -125,6 +133,8 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _socketService.off('message:receive', _messageReceiveHandler);
     _socketService.off('message:sent', _messageSentHandler);
     _socketService.off('group:message:receive', _groupMessageReceiveHandler);
+    _socketService.off('conversation:update', _conversationUpdateHandler);
+    _socketService.off('group:update', _groupUpdateHandler);
 
     _tabController.dispose();
     _socketSubscription?.cancel();
@@ -142,6 +152,8 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _socketService.on('message:receive', _messageReceiveHandler);
     _socketService.on('message:sent', _messageSentHandler);
     _socketService.on('group:message:receive', _groupMessageReceiveHandler);
+    _socketService.on('conversation:update', _conversationUpdateHandler);
+    _socketService.on('group:update', _groupUpdateHandler);
   }
 
   Future<void> _loadData({bool silent = false}) async {
@@ -635,9 +647,34 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         labelColor: isDark ? waTeal : Colors.white,
         unselectedLabelColor: isDark ? waGrey : Colors.white70,
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        tabs: const [
-          Tab(text: 'CHATS'),
-          Tab(text: 'CALLS'),
+        tabs: [
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('CHATS'),
+                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0)) > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? waTeal : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0))}',
+                      style: TextStyle(
+                        color: isDark ? Colors.black : waTeal,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Tab(text: 'CALLS'),
         ],
       ),
       extraActions: [
@@ -676,17 +713,25 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         controller: _tabController,
         children: [
             // Chats Tab
-            _isLoading && _conversations.isEmpty && _groups.isEmpty
-                ? _buildSkeletonList()
-                : _buildChatList(),
+            RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: waTeal,
+              child: _isLoading && _conversations.isEmpty && _groups.isEmpty
+                  ? _buildSkeletonList()
+                  : _buildChatList(),
+            ),
             
             // Status Tab Placeholder
             // _buildPlaceholderTab(Icons.update, 'Status updates will appear here'),
             
             // Calls Tab
-            _isLoading && _callLogs.isEmpty
-                ? _buildSkeletonList()
-                : _buildCallList(),
+            RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: waTeal,
+              child: _isLoading && _callLogs.isEmpty
+                  ? _buildSkeletonList()
+                  : _buildCallList(),
+            ),
           ],
         ),
       );

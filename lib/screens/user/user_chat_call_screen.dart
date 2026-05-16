@@ -114,6 +114,12 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
     _socketService.on('group:message:receive', (data) {
       if (mounted) _loadData(silent: true);
     });
+    _socketService.on('conversation:update', (data) {
+      if (mounted) _loadData(silent: true);
+    });
+    _socketService.on('group:update', (data) {
+      if (mounted) _loadData(silent: true);
+    });
   }
 
   Future<void> _loadData({bool silent = false}) async {
@@ -330,9 +336,34 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
         labelColor: isDark ? waTeal : Colors.white,
         unselectedLabelColor: isDark ? waGrey : Colors.white70,
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        tabs: const [
-          Tab(text: 'CHATS'),
-          Tab(text: 'CALLS'),
+        tabs: [
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('CHATS'),
+                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0)) > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? waTeal : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0))}',
+                      style: TextStyle(
+                        color: isDark ? Colors.black : waTeal,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Tab(text: 'CALLS'),
         ],
       ),
       extraActions: [
@@ -377,12 +408,20 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
       body: TabBarView(
         controller: _tabController,
         children: [
-          _isLoading && _conversations.isEmpty && _groups.isEmpty
-              ? _buildSkeletonList(isDark)
-              : _buildChatList(isDark),
-          _isLoading && _callLogs.isEmpty
-              ? _buildSkeletonList(isDark)
-              : _buildCallList(isDark),
+          RefreshIndicator(
+            onRefresh: _onRefresh,
+            color: waTeal,
+            child: _isLoading && _conversations.isEmpty && _groups.isEmpty
+                ? _buildSkeletonList(isDark)
+                : _buildChatList(isDark),
+          ),
+          RefreshIndicator(
+            onRefresh: _onRefresh,
+            color: waTeal,
+            child: _isLoading && _callLogs.isEmpty
+                ? _buildSkeletonList(isDark)
+                : _buildCallList(isDark),
+          ),
         ],
       ),
     );
