@@ -66,7 +66,7 @@ class User {
       username: json['username'] ?? '',
       employeeId: json['employeeId'],
       isActive: json['isActive'] ?? false,
-      profileImage: json['profileImage'],
+      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'] ?? json['image'],
     );
   }
 }

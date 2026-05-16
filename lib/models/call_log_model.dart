@@ -22,11 +22,26 @@ class CallLog {
   });
 
   factory CallLog.fromJson(Map<String, dynamic> json) {
+    // Safely extract caller and receiver data
+    Map<String, dynamic> callerData = {};
+    if (json['callerId'] is Map) {
+      callerData = Map<String, dynamic>.from(json['callerId']);
+    } else if (json['caller'] is Map) {
+      callerData = Map<String, dynamic>.from(json['caller']);
+    }
+
+    Map<String, dynamic> receiverData = {};
+    if (json['receiverId'] is Map) {
+      receiverData = Map<String, dynamic>.from(json['receiverId']);
+    } else if (json['receiver'] is Map) {
+      receiverData = Map<String, dynamic>.from(json['receiver']);
+    }
+
     return CallLog(
-      id: json['_id'],
+      id: json['_id'] ?? '',
       tenantId: json['tenantId'] is Map ? json['tenantId']['_id'] : json['tenantId'],
-      caller: CallUser.fromJson(json['callerId'] ?? json['caller'] ?? {}),
-      receiver: CallUser.fromJson(json['receiverId'] ?? json['receiver'] ?? {}),
+      caller: CallUser.fromJson(callerData),
+      receiver: CallUser.fromJson(receiverData),
       status: json['status'] ?? 'unknown',
       duration: json['duration'] ?? 0,
       limitSeconds: json['limitSeconds'] ?? 120,
@@ -52,12 +67,16 @@ class CallUser {
   });
 
   factory CallUser.fromJson(Map<String, dynamic> json) {
+    // Check for nested user object first
+    final userMap = json['user'] is Map<String, dynamic> ? json['user'] : null;
+    
     return CallUser(
-      id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? 'Unknown',
-      email: json['email'] ?? '',
-      role: json['role'] ?? '',
-      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'],
+      id: json['_id'] ?? json['id'] ?? userMap?['_id'] ?? userMap?['id'] ?? '',
+      name: json['name'] ?? userMap?['name'] ?? 'Unknown',
+      email: json['email'] ?? userMap?['email'] ?? '',
+      role: json['role'] ?? userMap?['role'] ?? '',
+      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['avatar'] ?? json['image'] ?? 
+                    userMap?['profileImage'] ?? userMap?['profile_image'] ?? userMap?['avatar'] ?? userMap?['image'],
     );
   }
 }
