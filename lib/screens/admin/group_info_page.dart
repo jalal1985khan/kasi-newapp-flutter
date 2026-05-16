@@ -251,7 +251,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
               CircleAvatar(
                 radius: 50,
                 backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
-                child: Icon(Icons.groups, size: 50, color: isDark ? Colors.white54 : Colors.grey[400]),
+                backgroundImage: (_group != null && _group!['profileImage'] != null && _group!['profileImage'].toString().isNotEmpty)
+                    ? NetworkImage(_group!['profileImage'])
+                    : null,
+                child: (_group == null || _group!['profileImage'] == null || _group!['profileImage'].toString().isEmpty)
+                    ? Icon(Icons.groups, size: 50, color: isDark ? Colors.white54 : Colors.grey[400])
+                    : null,
               ),
               const SizedBox(height: 16),
               Text(_group?['name'] ?? '', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
@@ -284,7 +289,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
-                      child: Text(name[0].toUpperCase(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black45)),
+                      backgroundImage: (userData != null && userData['profileImage'] != null && userData['profileImage'].toString().isNotEmpty)
+                          ? NetworkImage(userData['profileImage'])
+                          : null,
+                      child: (userData == null || userData['profileImage'] == null || userData['profileImage'].toString().isEmpty)
+                          ? Text(name[0].toUpperCase(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black45))
+                          : null,
                     ),
                     title: Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
                     subtitle: Text(role.toUpperCase(), style: TextStyle(color: subTextColor, fontSize: 11)),

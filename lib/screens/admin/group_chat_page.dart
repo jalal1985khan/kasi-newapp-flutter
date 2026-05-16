@@ -1136,61 +1136,86 @@ class _GroupChatBubble extends StatelessWidget {
       color: isHighlighted ? highlightColor : Colors.transparent,
       child: GestureDetector(
         onLongPress: () => onLongPress(message),
-        child: Align(
-          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isMe ? bubbleMe : bubbleOther,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(15),
-                  topRight: const Radius.circular(15),
-                  bottomLeft: isMe ? const Radius.circular(15) : const Radius.circular(5),
-                  bottomRight: isMe ? const Radius.circular(5) : const Radius.circular(15),
+        child: Row(
+          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isMe)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 4),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
+                  backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
+                      ? NetworkImage(message.senderProfileImage!)
+                      : null,
+                  child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
+                      ? Text(
+                          (message.senderName ?? 'M')[0].toUpperCase(),
+                          style: TextStyle(fontSize: 12, color: senderColor, fontWeight: FontWeight.bold),
+                        )
+                      : null,
                 ),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1)),
-                ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        message.senderName ?? 'Member',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: senderColor,
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
+              ),
+              child: Container(
+                margin: EdgeInsets.only(
+                  left: isMe ? 12 : 8,
+                  right: 12,
+                  top: 4,
+                  bottom: 4,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isMe ? bubbleMe : bubbleOther,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(15),
+                    topRight: const Radius.circular(15),
+                    bottomLeft: isMe ? const Radius.circular(15) : const Radius.circular(5),
+                    bottomRight: isMe ? const Radius.circular(5) : const Radius.circular(15),
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1)),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isMe)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          message.senderName ?? 'Member',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: senderColor,
+                          ),
                         ),
                       ),
+                    _buildReplyContext(isDark),
+                    _buildContent(context, textColor),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const SizedBox(width: 20),
+                        Text(
+                          DateFormat('hh:mm a').format(message.createdAt.toLocal()),
+                          style: TextStyle(fontSize: 10, color: subTextColor),
+                        ),
+                      ],
                     ),
-                  _buildReplyContext(isDark),
-                  _buildContent(context, textColor),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      const SizedBox(width: 20),
-                      Text(
-                        DateFormat('hh:mm a').format(message.createdAt.toLocal()),
-                        style: TextStyle(fontSize: 10, color: subTextColor),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

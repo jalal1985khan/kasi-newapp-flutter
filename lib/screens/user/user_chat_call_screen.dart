@@ -214,11 +214,12 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => IndividualChatScreen(
-                                  conversationId: convId,
-                                  name: partner['name'],
-                                  otherUserId: partner['_id'],
-                                ),
+                                  builder: (context) => IndividualChatScreen(
+                                    conversationId: convId,
+                                    name: partner['name'],
+                                    otherUserId: partner['_id'],
+                                    avatar: partner['profileImage'],
+                                  ),
                               ),
                             );
                           }
@@ -491,7 +492,12 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
             leading: CircleAvatar(
               radius: 28,
               backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-              child: Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600]),
+              backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
+                  ? NetworkImage(group['profileImage'])
+                  : null,
+              child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
+                  ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
+                  : null,
             ),
             title: Text(group['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
             subtitle: Text(lastMsg != null ? '~${lastMsg['senderName'] ?? 'Member'}: ${lastMsg['content'] ?? ""}' : 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
@@ -514,7 +520,15 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               CircleAvatar(
                 radius: 28,
                 backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                child: Text(admin.name.isNotEmpty ? admin.name[0].toUpperCase() : 'A', style: const TextStyle(color: Color(0xFF1A73E8), fontWeight: FontWeight.bold, fontSize: 20)),
+                backgroundImage: (admin.profileImage != null && admin.profileImage!.isNotEmpty)
+                    ? NetworkImage(admin.profileImage!)
+                    : null,
+                child: (admin.profileImage == null || admin.profileImage!.isEmpty)
+                    ? Text(
+                        admin.name.isNotEmpty ? admin.name[0].toUpperCase() : 'A',
+                        style: const TextStyle(color: Color(0xFF1A73E8), fontWeight: FontWeight.bold, fontSize: 20),
+                      )
+                    : null,
               ),
               if (isOnline) Positioned(right: 2, bottom: 2, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: const Color(0xFF25D366), shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF111B21) : Colors.white, width: 2)))),
             ],
@@ -523,7 +537,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
           subtitle: Text(conv.lastMessage?.content ?? 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
           trailing: _buildTrailing(conv.unreadCount, conv.updatedAt?.toIso8601String(), subTextColor),
           onTap: () async {
-            await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name)));
+            await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name, avatar: admin.profileImage)));
             _loadData(silent: true);
           },
         );

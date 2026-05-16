@@ -46,6 +46,7 @@ class ChatMessage {
   final String? replyTo;
   final bool isForwarded;
   final String? caption;
+  final String? senderProfileImage;
   
   // Local-only fields for background upload
   final double uploadProgress;
@@ -75,6 +76,7 @@ class ChatMessage {
     this.replyTo,
     this.isForwarded = false,
     this.caption,
+    this.senderProfileImage,
     this.uploadProgress = 1.0,
     this.uploadStatus = MessageUploadStatus.success,
     this.localPath,
@@ -103,6 +105,7 @@ class ChatMessage {
     String? replyTo,
     bool? isForwarded,
     String? caption,
+    String? senderProfileImage,
     double? uploadProgress,
     MessageUploadStatus? uploadStatus,
     String? localPath,
@@ -130,6 +133,7 @@ class ChatMessage {
       replyTo: replyTo ?? this.replyTo,
       isForwarded: isForwarded ?? this.isForwarded,
       caption: caption ?? this.caption,
+      senderProfileImage: senderProfileImage ?? this.senderProfileImage,
       uploadProgress: uploadProgress ?? this.uploadProgress,
       uploadStatus: uploadStatus ?? this.uploadStatus,
       localPath: localPath ?? this.localPath,
@@ -162,6 +166,7 @@ class ChatMessage {
       replyTo: json['replyTo'] ?? json['reply_to'],
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       caption: json['caption'],
+      senderProfileImage: json['senderProfileImage'],
       uploadProgress: 1.0,
       uploadStatus: MessageUploadStatus.success,
     );

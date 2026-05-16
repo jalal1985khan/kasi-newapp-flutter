@@ -281,7 +281,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                                     MaterialPageRoute(
                                       builder: (context) => IndividualChatPage(
                                         name: partner['name'],
-                                        avatar: '',
+                                        avatar: partner['profileImage'] ?? '',
                                         conversationId: convId,
                                         receiverId: partner['_id'],
                                       ),
@@ -851,7 +851,12 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
             leading: CircleAvatar(
               radius: 28,
               backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-              child: Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600]),
+              backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
+                  ? NetworkImage(group['profileImage'])
+                  : null,
+              child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
+                  ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
+                  : null,
             ),
             title: Text(
               group['name'],
@@ -935,10 +940,15 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               CircleAvatar(
                 radius: 28,
                 backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                child: Text(
-                  otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
-                  style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
-                ),
+                backgroundImage: (otherParticipant.profileImage != null && otherParticipant.profileImage!.isNotEmpty)
+                    ? NetworkImage(otherParticipant.profileImage!)
+                    : null,
+                child: (otherParticipant.profileImage == null || otherParticipant.profileImage!.isEmpty)
+                    ? Text(
+                        otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
+                        style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
+                      )
+                    : null,
               ),
               if (isOnline)
                 Positioned(
@@ -1011,7 +1021,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               MaterialPageRoute(
                 builder: (context) => IndividualChatPage(
                   name: otherParticipant.name,
-                  avatar: '',
+                  avatar: otherParticipant.profileImage ?? '',
                   conversationId: conversation.id,
                   receiverId: otherParticipant.id,
                 ),

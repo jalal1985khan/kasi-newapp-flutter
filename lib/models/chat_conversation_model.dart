@@ -68,8 +68,9 @@ class Participant {
   final String id;
   final String name;
   final String email;
-  final String role;
   final String fcmToken;
+  final String role;
+  final String? profileImage;
 
   Participant({
     required this.id,
@@ -77,6 +78,7 @@ class Participant {
     required this.email,
     required this.role,
     required this.fcmToken,
+    this.profileImage,
   });
 
   factory Participant.fromJson(Map<String, dynamic> json) {
@@ -86,6 +88,7 @@ class Participant {
       email: json['email'] ?? '',
       role: json['role'] ?? '',
       fcmToken: json['fcmToken'] ?? '',
+      profileImage: json['profileImage'],
     );
   }
 }
