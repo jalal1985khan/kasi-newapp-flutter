@@ -551,14 +551,11 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
     }
     // Fallback: search in conversations list
     try {
-      for (var item in _conversations) {
-        if (item['type'] == 'individual') {
-          final conv = item['data'] as Conversation;
-          final partner = conv.participants.firstWhere((p) => p.id == user.id, orElse: () => Participant(id: '', name: '', email: '', role: '', fcmToken: ''));
+      for (var conv in _conversations) {
+          final partner = conv.participants.firstWhere((p) => p.id == user.id, orElse: () => Participant(id: '', name: '', email: '', role: '', fcmToken: '', profileImage: ''));
           if (partner.id.isNotEmpty && partner.profileImage != null && partner.profileImage!.isNotEmpty) {
             return partner.profileImage;
           }
-        }
       }
     } catch (e) {
       // Ignore

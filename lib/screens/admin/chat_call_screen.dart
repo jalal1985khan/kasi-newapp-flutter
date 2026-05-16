@@ -29,6 +29,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   List<Conversation> _conversations = [];
   List<dynamic> _groups = [];
   List<CallLog> _callLogs = [];
+  List<dynamic> _partners = [];
   bool _isLoading = true;
   String? _currentUserId;
   final Map<String, bool> _onlineStatuses = {};
@@ -165,6 +166,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
       final conversationsResponse = await _chatService.getConversations();
       final groupsResponse = await _groupChatService.getMyGroups();
       final callLogsResponse = await CallLogService.getAdminCallLogs();
+      final allPartners = await _chatService.getPartners();
       final user = await _authService.getUser();
 
       if (mounted) {
@@ -172,6 +174,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
           _conversations = conversationsResponse.conversations;
           _groups = groupsResponse['groups'] ?? [];
           _callLogs = callLogsResponse ?? [];
+          _partners = allPartners;
           _currentUserId = user?['id'] ?? user?['_id'];
           _isLoading = false;
         });
