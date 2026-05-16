@@ -653,7 +653,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text('CHATS'),
-                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0)) > 0) ...[
+                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int)) > 0) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -662,7 +662,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + (g['unreadCount'] ?? 0))}',
+                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int))}',
                       style: TextStyle(
                         color: isDark ? Colors.black : waTeal,
                         fontSize: 10,
