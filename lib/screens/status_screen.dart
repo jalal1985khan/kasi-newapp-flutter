@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:story_view/story_view.dart';
+import 'status_view_widget.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../services/auth_service.dart';
@@ -70,36 +70,15 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   void _viewStory(UserStatuses userStatus) {
-    final List<StoryItem> items = userStatus.statuses.map((s) {
-      if (s.type == 'image') {
-        return StoryItem.pageImage(
-          url: _authService.getFullUrl(s.content)!,
-          controller: StoryController(),
-          caption: s.caption != null && s.caption!.isNotEmpty ? s.caption : null,
-        );
-      } else {
-        // Fallback for text or other types
-        return StoryItem.text(
-          title: s.caption ?? 'Status',
-          backgroundColor: Colors.blueGrey,
-        );
-      }
-    }).toList();
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => StoryPageView(
-          storyItems: items,
-          controller: StoryController(),
+        builder: (context) => CustomStatusView(
+          statuses: userStatus.statuses,
+          userName: userStatus.user.name,
+          userAvatar: userStatus.user.profileImage,
           onComplete: () => Navigator.pop(context),
-          onVerticalSwipeComplete: (direction) {
-            if (direction == Direction.down) Navigator.pop(context);
-          },
-          userProfile: StoryUserProfile(
-            name: userStatus.user.name,
-            avatarUrl: _authService.getFullUrl(userStatus.user.profileImage),
-          ),
         ),
       ),
     );
@@ -236,69 +215,3 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 }
 
-class StoryUserProfile {
-  final String name;
-  final String? avatarUrl;
-  StoryUserProfile({required this.name, this.avatarUrl});
-}
-
-class StoryPageView extends StatelessWidget {
-  final List<StoryItem> storyItems;
-  final StoryController controller;
-  final VoidCallback? onComplete;
-  final Function(Direction?)? onVerticalSwipeComplete;
-  final StoryUserProfile userProfile;
-
-  const StoryPageView({
-    super.key,
-    required this.storyItems,
-    required this.controller,
-    this.onComplete,
-    this.onVerticalSwipeComplete,
-    required this.userProfile,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          StoryView(
-            storyItems: storyItems,
-            controller: controller,
-            onComplete: onComplete,
-            onVerticalSwipeComplete: onVerticalSwipeComplete,
-          ),
-          Positioned(
-            top: 50,
-            left: 15,
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: userProfile.avatarUrl != null 
-                      ? NetworkImage(userProfile.avatarUrl!) 
-                      : null,
-                  child: userProfile.avatarUrl == null ? Text(userProfile.name[0]) : null,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  userProfile.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 45,
-            right: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 28),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
