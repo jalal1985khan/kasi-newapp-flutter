@@ -48,6 +48,7 @@ class User {
   final String username;
   final String? employeeId;
   final bool isActive;
+  final String? profileImage;
 
   User({
     required this.id,
@@ -55,6 +56,7 @@ class User {
     required this.username,
     this.employeeId,
     required this.isActive,
+    this.profileImage,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,7 @@ class User {
       username: json['username'] ?? '',
       employeeId: json['employeeId'],
       isActive: json['isActive'] ?? false,
+      profileImage: json['profileImage'],
     );
   }
 }

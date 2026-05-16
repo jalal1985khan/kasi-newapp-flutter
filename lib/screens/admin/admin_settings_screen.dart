@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/signin/signedin_user_details.dart';
 import '../../services/auth_service.dart';
 import 'admin_common_widgets/admin_layout.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
