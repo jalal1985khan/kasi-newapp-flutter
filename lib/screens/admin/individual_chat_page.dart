@@ -2108,10 +2108,21 @@ class _ChatBubble extends StatelessWidget {
                   ),
                 );
               } else {
-                _openFile(
+                final String ext = message.fileName?.split('.').last.toLowerCase() ?? '';
+                String type = 'document';
+                if (ext == 'pdf') type = 'pdf';
+                
+                Navigator.push(
                   context,
-                  message.content,
-                  message.fileName ?? 'Attachment',
+                  MaterialPageRoute(
+                    builder: (_) => MediaGalleryScreen(
+                      url: message.content,
+                      type: type,
+                      fileName: message.fileName,
+                      senderName: isMe ? 'You' : userName,
+                      userRole: userRole,
+                    ),
+                  ),
                 );
               }
             },

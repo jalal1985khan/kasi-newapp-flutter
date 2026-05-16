@@ -1453,20 +1453,43 @@ class _ChatBubble extends StatelessWidget {
         break;
       case 'document':
       case 'file':
-        media = Container(
-          width: standardWidth,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.insert_drive_file, color: Colors.blue),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message.fileName ?? 'File Attachment', style: TextStyle(color: textColor, decoration: TextDecoration.underline), overflow: TextOverflow.ellipsis)),
-            ],
+      case 'attachment':
+        media = GestureDetector(
+          onTap: () {
+            if (!isUploading && !isError && message.content.isNotEmpty) {
+              final String ext = message.fileName?.split('.').last.toLowerCase() ?? '';
+              String type = 'document';
+              if (ext == 'pdf') type = 'pdf';
+              
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MediaGalleryScreen(
+                    url: message.content,
+                    type: type,
+                    fileName: message.fileName,
+                    senderName: isMe ? 'You' : (message.senderName ?? userName),
+                    userRole: userRole,
+                  ),
+                ),
+              );
+            }
+          },
+          child: Container(
+            width: standardWidth,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.insert_drive_file, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(child: Text(message.fileName ?? 'File Attachment', style: TextStyle(color: textColor, decoration: TextDecoration.underline), overflow: TextOverflow.ellipsis)),
+              ],
+            ),
           ),
         );
         break;

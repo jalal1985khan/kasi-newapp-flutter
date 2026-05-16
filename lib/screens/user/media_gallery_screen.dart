@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:dio/dio.dart';
+import 'dart:typed_data';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String url;
@@ -93,7 +97,11 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               )
             : widget.type == 'video'
                 ? VideoPlayerWidget(url: widget.url)
-                : const Text('Unsupported media type', style: TextStyle(color: Colors.white)),
+                : widget.type == 'pdf' || (widget.fileName?.toLowerCase().endsWith('.pdf') ?? false)
+                    ? PdfViewerWidget(url: widget.url)
+                    : (widget.type == 'document' || widget.type == 'attachment')
+                        ? AppWebViewViewer(url: widget.url)
+                        : const Text('Unsupported media type', style: TextStyle(color: Colors.white)),
       ),
     );
   }
@@ -151,4 +159,99 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         ? Chewie(controller: _chewieController!)
         : const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
   }
+}
+class PdfViewerWidget extends StatefulWidget {
+  final String url;
+  const PdfViewerWidget({super.key, required this.url});
+
+  @override
+  State<PdfViewerWidget> createState() => _PdfViewerWidgetState();
+}
+
+class _PdfViewerWidgetState extends State<PdfViewerWidget> {
+  PdfControllerPinch? _pdfController;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPdf();
+  }
+
+  Future<void> _loadPdf() async {
+    try {
+      _pdfController = PdfControllerPinch(
+        document: PdfDocument.openData(
+          (await Dio().get<List<int>>(
+            widget.url,
+            options: Options(responseType: ResponseType.bytes),
+          )).data!.toUint8List(),
+        ),
+      );
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pdfController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
+    if (_error != null) return Center(child: Text('Error: $_error', style: const TextStyle(color: Colors.white)));
+    return PdfViewPinch(controller: _pdfController!);
+  }
+}
+
+class AppWebViewViewer extends StatefulWidget {
+  final String url;
+  const AppWebViewViewer({super.key, required this.url});
+
+  @override
+  State<AppWebViewViewer> createState() => _AppWebViewViewerState();
+}
+
+class _AppWebViewViewerState extends State<AppWebViewViewer> {
+  late WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final String encodedUrl = Uri.encodeComponent(widget.url);
+    final String viewerUrl = 'https://docs.google.com/viewer?url=$encodedUrl&embedded=true';
+    
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) => setState(() => _isLoading = false),
+        ),
+      )
+      ..loadRequest(Uri.parse(viewerUrl));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator(color: Color(0xFF00A884))),
+      ],
+    );
+  }
+}
+
+extension ListIntToUint8List on List<int> {
+  Uint8List toUint8List() => Uint8List.fromList(this);
 }
