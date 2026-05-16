@@ -19,6 +19,7 @@ import 'individual_chat_page.dart';
 import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
+import '../user/media_gallery_screen.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupId;
@@ -58,6 +59,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _isPlayingPreview = false;
   Duration _previewPosition = Duration.zero;
   Duration _previewDuration = Duration.zero;
+  String? _userRole;
 
   SocketService get socket => SocketService();
 
@@ -183,6 +185,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Future<void> _loadData() async {
     final user = await _authService.getUser();
     _currentUserId = user?['id'] ?? user?['_id'];
+    _userRole = user?['role'];
 
     try {
       final res = await _groupChatService.getGroupMessages(widget.groupId);
@@ -594,7 +597,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               onLongPress: isMe
                                   ? () => _deleteMessage(msg.id)
                                   : null,
-                              child: _GroupChatBubble(message: msg, isMe: isMe),
+                              child: _GroupChatBubble(
+                                message: msg,
+                                isMe: isMe,
+                                userRole: _userRole,
+                              ),
                             ),
                           ],
                         );
@@ -848,8 +855,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
 class _GroupChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
+  final String? userRole;
 
-  const _GroupChatBubble({required this.message, required this.isMe});
+  const _GroupChatBubble({
+    required this.message, 
+    required this.isMe,
+    this.userRole,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -935,18 +947,41 @@ class _GroupChatBubble extends StatelessWidget {
 
   Widget _buildContent(BuildContext context, Color textColor) {
     Widget contentWidget;
+    const double standardWidth = 250.0;
     switch (message.type) {
       case 'image':
-        contentWidget = ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            message.content,
-            errorBuilder: (c, e, s) => const Icon(Icons.broken_image),
+        contentWidget = GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MediaGalleryScreen(
+                  url: message.content,
+                  type: 'image',
+                  fileName: message.fileName,
+                  senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                  userRole: userRole,
+                ),
+              ),
+            );
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              message.content,
+              width: standardWidth,
+              height: 200,
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) => const Icon(Icons.broken_image),
+            ),
           ),
         );
         break;
       case 'audio':
-        contentWidget = _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        contentWidget = SizedBox(
+          width: standardWidth,
+          child: _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration),
+        );
         break;
       case 'document':
       case 'file':
@@ -972,30 +1007,54 @@ class _GroupChatBubble extends StatelessWidget {
           }
         }
 
-        contentWidget = GestureDetector(
-          onTap: () => _openFile(
-            context,
-            message.content,
-            message.fileName ?? 'Attachment',
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(fileIcon, color: iconColor, size: 28),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
+        contentWidget = SizedBox(
+          width: standardWidth,
+          child: GestureDetector(
+            onTap: () {
+              final isVideo = (message.fileName != null && 
+                  (['mp4', 'mov', 'avi'].contains(message.fileName!.split('.').last.toLowerCase()))) || 
+                  message.type == 'video';
+                  
+              if (isVideo) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MediaGalleryScreen(
+                      url: message.content,
+                      type: 'video',
+                      fileName: message.fileName,
+                      senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                      userRole: userRole,
+                    ),
+                  ),
+                );
+              } else {
+                _openFile(
+                  context,
+                  message.content,
                   message.fileName ?? 'Attachment',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    decoration: TextDecoration.underline,
-                    color: iconColor,
-                    fontWeight: FontWeight.bold,
+                );
+              }
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(fileIcon, color: iconColor, size: 28),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    message.fileName ?? 'Attachment',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      decoration: TextDecoration.underline,
+                      color: iconColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
         break;
@@ -1021,7 +1080,7 @@ class _AudioPlayerWidget extends StatefulWidget {
   final String url;
   final bool isMe;
   final int? initialDuration;
-  const _AudioPlayerWidget({required this.url, required this.isMe, this.initialDuration});
+  const _AudioPlayerWidget({required this.url, required this.isMe, this.initialDuration, super.key});
 
   @override
   State<_AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
@@ -1056,52 +1115,101 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
     super.dispose();
   }
 
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$twoDigitMinutes:$twoDigitSeconds";
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          constraints: const BoxConstraints(),
-          padding: EdgeInsets.zero,
-          icon: Icon(
-            _isPlaying ? Icons.pause : Icons.play_arrow,
-            size: 24,
-            color: widget.isMe ? Colors.green[800] : Colors.blue,
-          ),
-          onPressed: () {
-            if (_isPlaying)
-              _player.pause();
-            else
-              _player.play(UrlSource(widget.url));
-          },
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 120,
-              child: LinearProgressIndicator(
-                value: _duration.inMilliseconds > 0
-                    ? _position.inMilliseconds / _duration.inMilliseconds
-                    : 0,
-                backgroundColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white10
-                    : Colors.black12,
-                valueColor: AlwaysStoppedAnimation(
-                  widget.isMe ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF25D366) : Colors.green[800]) : Colors.blue,
-                ),
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color primaryColor = widget.isMe
+        ? (isDark ? const Color(0xFF25D366) : Colors.green[800]!)
+        : Colors.blue;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () {
+              if (_isPlaying) {
+                _player.pause();
+              } else {
+                _player.play(UrlSource(widget.url));
+              }
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: primaryColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.white,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              "${_position.inSeconds}s / ${_duration.inSeconds}s",
-              style: TextStyle(fontSize: 10, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.grey[700]),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                    activeTrackColor: primaryColor,
+                    inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                    thumbColor: primaryColor,
+                  ),
+                  child: Slider(
+                    value: _position.inMilliseconds.toDouble(),
+                    max: _duration.inMilliseconds > 0
+                        ? _duration.inMilliseconds.toDouble()
+                        : 1.0,
+                    onChanged: (value) {
+                      _player.seek(Duration(milliseconds: value.toInt()));
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDuration(_position),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white54 : Colors.grey[600]),
+                      ),
+                      Text(
+                        _formatDuration(_duration),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white54 : Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

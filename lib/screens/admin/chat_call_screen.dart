@@ -76,6 +76,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
       final List<dynamic> onlineIds = data['userIds'] ?? [];
       if (mounted) {
         setState(() {
+          _onlineStatuses.clear(); // Clear old statuses to avoid "always online" bug
           for (var id in onlineIds) {
             _onlineStatuses[id.toString()] = true;
           }
