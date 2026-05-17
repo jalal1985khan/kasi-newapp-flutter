@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'package:flutter/widgets.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../api_constants.dart';
 import '../auth_service.dart';
 
-class SocketService {
+class SocketService with WidgetsBindingObserver {
   static final SocketService _instance = SocketService._internal();
   factory SocketService() => _instance;
-  SocketService._internal();
+  SocketService._internal() {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   IO.Socket? socket;
   final AuthService _authService = AuthService();
@@ -58,8 +61,8 @@ class SocketService {
             .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
             .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
             .enableReconnection()
-            .setReconnectionDelay(3000)
-            .setReconnectionAttempts(15)
+            .setReconnectionDelay(2000)
+            .setReconnectionAttempts(999999)
             .build(),
       );
 
@@ -198,5 +201,16 @@ class SocketService {
       socket?.off(event);
     });
     _listeners.clear();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print('📱 [Socket] App Lifecycle State Changed: $state');
+    if (state == AppLifecycleState.resumed) {
+      print('📱 [Socket] App resumed: checking/forcing reconnection...');
+      if (socket == null || !socket!.connected) {
+        connect();
+      }
+    }
   }
 }
