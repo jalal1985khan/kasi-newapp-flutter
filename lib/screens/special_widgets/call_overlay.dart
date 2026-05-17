@@ -302,6 +302,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
 
       final user = await _authService.getUser();
       final callerName = user?['name'] ?? 'Admin';
+      final callerImage = AuthService.getProfileImage(user) ?? '';
 
       _remoteUserId = widget.receiverId; // store for WebRTC signaling
       _token = response['token'];
@@ -309,6 +310,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
         'callId': _callId,
         'receiverId': widget.receiverId,
         'callerName': callerName,
+        'callerImage': callerImage,
         'roomName': _roomName,
         'token': _token,
       });
