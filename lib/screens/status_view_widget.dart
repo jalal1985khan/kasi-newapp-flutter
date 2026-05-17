@@ -5,16 +5,14 @@ import '../models/status_model.dart';
 import '../services/auth_service.dart';
 
 class CustomStatusView extends StatefulWidget {
-  final List<StatusModel> statuses;
-  final String userName;
-  final String? userAvatar;
+  final List<UserStatuses> allUserStatuses;
+  final int initialUserIndex;
   final VoidCallback onComplete;
 
   const CustomStatusView({
     super.key,
-    required this.statuses,
-    required this.userName,
-    this.userAvatar,
+    required this.allUserStatuses,
+    required this.initialUserIndex,
     required this.onComplete,
   });
 
@@ -23,6 +21,7 @@ class CustomStatusView extends StatefulWidget {
 }
 
 class _CustomStatusViewState extends State<CustomStatusView> {
+  late int _currentUserIndex;
   int _currentIndex = 0;
   double _progress = 0.0;
   Timer? _timer;
@@ -34,8 +33,14 @@ class _CustomStatusViewState extends State<CustomStatusView> {
   @override
   void initState() {
     super.initState();
+    _currentUserIndex = widget.initialUserIndex;
     _playCurrentStatus();
   }
+
+  UserStatuses get _currentUserStatus => widget.allUserStatuses[_currentUserIndex];
+  List<StatusModel> get _statuses => _currentUserStatus.statuses;
+  String get _userName => _currentUserStatus.user.name;
+  String? get _userAvatar => _currentUserStatus.user.profileImage;
 
   void _playCurrentStatus() {
     _timer?.cancel();
@@ -43,7 +48,12 @@ class _CustomStatusViewState extends State<CustomStatusView> {
     _videoController = null;
     _progress = 0.0;
 
-    final status = widget.statuses[_currentIndex];
+    if (_statuses.isEmpty) {
+      _nextUserOrComplete();
+      return;
+    }
+
+    final status = _statuses[_currentIndex];
 
     if (status.type == 'video') {
       _isVideoLoading = true;
@@ -91,10 +101,23 @@ class _CustomStatusViewState extends State<CustomStatusView> {
   }
 
   void _nextStatus() {
-    if (_currentIndex < widget.statuses.length - 1) {
+    if (_currentIndex < _statuses.length - 1) {
       setState(() {
         _currentIndex++;
         _pageController.jumpToPage(_currentIndex);
+        _playCurrentStatus();
+      });
+    } else {
+      _nextUserOrComplete();
+    }
+  }
+
+  void _nextUserOrComplete() {
+    if (_currentUserIndex < widget.allUserStatuses.length - 1) {
+      setState(() {
+        _currentUserIndex++;
+        _currentIndex = 0;
+        _pageController.jumpToPage(0);
         _playCurrentStatus();
       });
     } else {
@@ -110,6 +133,16 @@ class _CustomStatusViewState extends State<CustomStatusView> {
         _pageController.jumpToPage(_currentIndex);
         _playCurrentStatus();
       });
+    } else {
+      // Go to previous user's last status if possible
+      if (_currentUserIndex > 0) {
+        setState(() {
+          _currentUserIndex--;
+          _currentIndex = widget.allUserStatuses[_currentUserIndex].statuses.length - 1;
+          _pageController.jumpToPage(_currentIndex);
+          _playCurrentStatus();
+        });
+      }
     }
   }
 
@@ -123,6 +156,13 @@ class _CustomStatusViewState extends State<CustomStatusView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_statuses.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -139,7 +179,7 @@ class _CustomStatusViewState extends State<CustomStatusView> {
           _videoController?.pause();
         },
         onLongPressEnd: (_) {
-          if (widget.statuses[_currentIndex].type == 'video') {
+          if (_statuses[_currentIndex].type == 'video') {
             _videoController?.play();
             _startVideoTimer();
           } else {
@@ -152,9 +192,9 @@ class _CustomStatusViewState extends State<CustomStatusView> {
             PageView.builder(
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.statuses.length,
+              itemCount: _statuses.length,
               itemBuilder: (context, index) {
-                final status = widget.statuses[index];
+                final status = _statuses[index];
                 if (status.type == 'video') {
                   return Center(
                     child: _videoController != null && _videoController!.value.isInitialized
@@ -222,7 +262,7 @@ class _CustomStatusViewState extends State<CustomStatusView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
-                      children: List.generate(widget.statuses.length, (index) {
+                      children: List.generate(_statuses.length, (index) {
                         return Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -246,15 +286,15 @@ class _CustomStatusViewState extends State<CustomStatusView> {
                       children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundImage: widget.userAvatar != null
-                              ? NetworkImage(_authService.getFullUrl(widget.userAvatar)!)
+                          backgroundImage: _userAvatar != null
+                              ? NetworkImage(_authService.getFullUrl(_userAvatar)!)
                               : null,
-                          child: widget.userAvatar == null ? Text(widget.userName[0]) : null,
+                          child: _userAvatar == null ? Text(_userName[0]) : null,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            widget.userName,
+                            _userName,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,

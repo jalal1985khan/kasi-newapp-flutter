@@ -29,14 +29,24 @@ class StatusTabContentState extends State<StatusTabContent> {
 
   Future<void> _loadData() async {
     if (mounted) setState(() => _isLoading = true);
-    final statuses = await _statusService.getStatuses();
-    final user = await _authService.getUser();
-    if (mounted) {
-      setState(() {
-        _allStatuses = statuses;
-        _currentUser = user;
-        _isLoading = false;
-      });
+    try {
+      final statuses = await _statusService.getStatuses();
+      final user = await _authService.getUser();
+      if (mounted) {
+        setState(() {
+          _allStatuses = statuses;
+          _currentUser = user;
+          _isLoading = false;
+        });
+      }
+    } catch (e, stack) {
+      print('❌ [StatusTabContent] Error loading data: $e\n$stack');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load status updates: $e')),
+        );
+      }
     }
   }
 
@@ -140,13 +150,15 @@ class StatusTabContentState extends State<StatusTabContent> {
   }
 
   void _viewStory(UserStatuses userStatus) {
+    final int userIndex = _allStatuses.indexOf(userStatus);
+    if (userIndex == -1) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => CustomStatusView(
-          statuses: userStatus.statuses,
-          userName: userStatus.user.name,
-          userAvatar: userStatus.user.profileImage,
+          allUserStatuses: _allStatuses,
+          initialUserIndex: userIndex,
           onComplete: () => Navigator.pop(context),
         ),
       ),
@@ -250,7 +262,9 @@ class StatusTabContentState extends State<StatusTabContent> {
         ),
       ),
       title: Text(us.user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(DateFormat('hh:mm a').format(us.statuses.last.createdAt)),
+      subtitle: Text(us.statuses.isNotEmpty
+          ? DateFormat('hh:mm a').format(us.statuses.last.createdAt)
+          : ''),
     );
   }
 }

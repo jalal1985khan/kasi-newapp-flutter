@@ -1,14 +1,14 @@
 import 'package:dio/dio.dart';
 import '../models/status_model.dart';
 import '../services/dio_client.dart';
-import '../services/auth_service.dart';
+import '../services/api_constants.dart';
 
 class StatusService {
   final Dio _dio = DioClient().dio;
 
   Future<List<UserStatuses>> getStatuses() async {
     try {
-      final response = await _dio.get('/statuses');
+      final response = await _dio.get(ApiConstants.statuses);
       if (response.data['success'] == true) {
         return (response.data['statuses'] as List)
             .map((s) => UserStatuses.fromJson(s))
@@ -27,7 +27,7 @@ class StatusService {
     String? caption,
   }) async {
     try {
-      final response = await _dio.post('/statuses', data: {
+      final response = await _dio.post(ApiConstants.statuses, data: {
         'content': content,
         'type': type,
         'caption': caption,
@@ -41,7 +41,7 @@ class StatusService {
 
   Future<bool> viewStatus(String statusId) async {
     try {
-      final response = await _dio.post('/statuses/$statusId/view');
+      final response = await _dio.post('${ApiConstants.statuses}/$statusId/view');
       return response.data['success'] == true;
     } catch (e) {
       print('Error viewing status: $e');
@@ -51,7 +51,7 @@ class StatusService {
 
   Future<bool> deleteStatus(String statusId) async {
     try {
-      final response = await _dio.delete('/statuses/$statusId');
+      final response = await _dio.delete('${ApiConstants.statuses}/$statusId');
       return response.data['success'] == true;
     } catch (e) {
       print('Error deleting status: $e');

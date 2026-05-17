@@ -30,6 +30,7 @@ class ApiConstants {
   static const String uploadSpaces = 'api/upload/spaces';
   static const String uploadCloudinary = 'api/upload/cloudinary';
   static const String userProfile = 'api/user/profile';
+  static const String statuses = 'api/statuses';
   
   // Voice call endpoints
   static const String callToken = 'api/flutter/call/token';
