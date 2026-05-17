@@ -36,6 +36,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   final Map<String, bool> _onlineStatuses = {};
   late TabController _tabController;
   StreamSubscription? _socketSubscription;
+  bool _isGroupsExpanded = true;
 
   // Search state
   bool _isSearching = false;
@@ -448,103 +449,175 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   }
 
   Widget _buildChatList(bool isDark) {
-    var allItems = [
-      ..._conversations.where((c) => c.participants.any((p) => p.role == 'admin' || p.role == 'super-admin')).map((c) => {'type': 'individual', 'data': c}),
-      ..._groups.map((g) => {'type': 'group', 'data': g}),
-    ];
+    // Separate groups and individual conversations
+    var filteredConversations = _conversations.where((c) => c.participants.any((p) => p.role == 'admin' || p.role == 'super-admin')).toList();
+    var filteredGroups = _groups;
 
+    // Filter by search query
     if (_searchQuery.isNotEmpty) {
-      allItems = allItems.where((item) {
-        if (item['type'] == 'group') {
-          return (item['data'] as Map)['name'].toString().toLowerCase().contains(_searchQuery);
-        } else {
-          final conv = item['data'] as Conversation;
-          final other = conv.participants.firstWhere((p) => p.id != _currentUserId, orElse: () => conv.participants.first);
-          return other.name.toLowerCase().contains(_searchQuery);
-        }
+      final query = _searchQuery.toLowerCase();
+      filteredConversations = filteredConversations.where((conv) {
+        final other = conv.participants.firstWhere((p) => p.id != _currentUserId, orElse: () => conv.participants.first);
+        return other.name.toLowerCase().contains(query);
+      }).toList();
+
+      filteredGroups = filteredGroups.where((g) {
+        return (g['name'] ?? '').toString().toLowerCase().contains(query);
       }).toList();
     }
 
-    allItems.sort((a, b) {
-      DateTime da = a['type'] == 'individual'
-          ? (a['data'] as Conversation).updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)
-          : DateTime.tryParse((a['data'] as Map)['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-      DateTime db = b['type'] == 'individual'
-          ? (b['data'] as Conversation).updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)
-          : DateTime.tryParse((b['data'] as Map)['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+    // Sort conversations by last updated
+    filteredConversations.sort((a, b) {
+      DateTime da = a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
     });
 
-    if (allItems.isEmpty) return _buildEmptyState(Icons.chat_bubble_outline, 'No conversations yet');
+    // Sort groups by last updated
+    filteredGroups.sort((a, b) {
+      DateTime da = DateTime.tryParse(a['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = DateTime.tryParse(b['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    });
+
+    if (filteredConversations.isEmpty && filteredGroups.isEmpty) {
+      return _buildEmptyState(Icons.chat_bubble_outline, 'No conversations yet');
+    }
 
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.grey[400]! : Colors.black54;
 
-    return ListView.separated(
-      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-      itemCount: allItems.length,
-      separatorBuilder: (context, index) => Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
-      itemBuilder: (context, index) {
-        final item = allItems[index];
-        if (item['type'] == 'group') {
-          final group = item['data'] as Map;
-          final lastMsg = group['lastMessage'];
-          return ListTile(
-            onLongPress: () => _showGroupOptions(context, group, isDark, textColor, subTextColor),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: CircleAvatar(
-              radius: 28,
-              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-              backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
-                  ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
-                  : null,
-              child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
-                  ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
-                  : null,
-            ),
-            title: Text(group['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
-            subtitle: Text(lastMsg != null ? '~${lastMsg['senderName'] ?? 'Member'}: ${lastMsg['content'] ?? ""}' : 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
-            trailing: _buildTrailing(group['unreadCount'] ?? 0, lastMsg?['timestamp'], subTextColor),
-            onTap: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (context) => GroupChatPage(groupId: group['_id'], name: group['name'], isAdmin: false)));
-              _loadData(silent: true);
-            },
-          );
-        }
+    final TextStyle headerStyle = TextStyle(
+      color: isDark ? const Color(0xFF8A939B) : Colors.grey[600],
+      fontSize: 12,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 1.3,
+    );
 
-        final conv = item['data'] as Conversation;
-        final admin = conv.participants.firstWhere((p) => p.id != _currentUserId, orElse: () => conv.participants.first);
-        final bool isOnline = _onlineStatuses[admin.id] ?? false;
-
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                backgroundImage: (admin.profileImage != null && admin.profileImage!.isNotEmpty)
-                    ? NetworkImage(AuthService().getFullUrl(admin.profileImage)!)
-                    : null,
-                child: (admin.profileImage == null || admin.profileImage!.isEmpty)
-                    ? Text(
-                        admin.name.isNotEmpty ? admin.name[0].toUpperCase() : 'A',
-                        style: const TextStyle(color: Color(0xFF1A73E8), fontWeight: FontWeight.bold, fontSize: 20),
-                      )
-                    : null,
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        // ── GROUPS Section (Collapsible Accordion) ──
+        if (filteredGroups.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isGroupsExpanded = !_isGroupsExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('GROUPS', style: headerStyle),
+                    Icon(
+                      _isGroupsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: isDark ? const Color(0xFF8A939B) : Colors.grey[600],
+                    ),
+                  ],
+                ),
               ),
-              if (isOnline) Positioned(right: 2, bottom: 2, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: const Color(0xFF25D366), shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF111B21) : Colors.white, width: 2)))),
-            ],
+            ),
           ),
-          title: Text(admin.name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
-          subtitle: Text(conv.lastMessage?.content ?? 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
-          trailing: _buildTrailing(conv.unreadCount, conv.updatedAt?.toIso8601String(), subTextColor),
-          onTap: () async {
-            await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name, avatar: AuthService().getFullUrl(admin.profileImage))));
-            _loadData(silent: true);
-          },
-        );
-      },
+          
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredGroups.length,
+              separatorBuilder: (context, index) =>
+                  Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
+              itemBuilder: (context, index) {
+                final group = filteredGroups[index] as Map;
+                final lastMsg = group['lastMessage'];
+
+                return ListTile(
+                  onLongPress: () => _showGroupOptions(context, group, isDark, textColor, subTextColor),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                    backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
+                        ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
+                        : null,
+                    child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
+                        ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
+                        : null,
+                  ),
+                  title: Text(group['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
+                  subtitle: Text(lastMsg != null ? '~${lastMsg['senderName'] ?? 'Member'}: ${lastMsg['content'] ?? ""}' : 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
+                  trailing: _buildTrailing(group['unreadCount'] ?? 0, lastMsg?['timestamp'], subTextColor),
+                  onTap: () async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (context) => GroupChatPage(groupId: group['_id'], name: group['name'], isAdmin: false)));
+                    _loadData(silent: true);
+                  },
+                );
+              },
+            ),
+            crossFadeState: _isGroupsExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // ── DIRECT MESSAGES Section ──
+        if (filteredConversations.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 4.0),
+              child: Text('DIRECT MESSAGES', style: headerStyle),
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredConversations.length,
+            separatorBuilder: (context, index) =>
+                Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
+            itemBuilder: (context, index) {
+              final conv = filteredConversations[index];
+              final admin = conv.participants.firstWhere((p) => p.id != _currentUserId, orElse: () => conv.participants.first);
+              final bool isOnline = _onlineStatuses[admin.id] ?? false;
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                leading: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
+                      backgroundImage: (admin.profileImage != null && admin.profileImage!.isNotEmpty)
+                          ? NetworkImage(AuthService().getFullUrl(admin.profileImage)!)
+                          : null,
+                      child: (admin.profileImage == null || admin.profileImage!.isEmpty)
+                          ? Text(
+                              admin.name.isNotEmpty ? admin.name[0].toUpperCase() : 'A',
+                              style: const TextStyle(color: Color(0xFF1A73E8), fontWeight: FontWeight.bold, fontSize: 20),
+                            )
+                          : null,
+                    ),
+                    if (isOnline) Positioned(right: 2, bottom: 2, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: const Color(0xFF25D366), shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF111B21) : Colors.white, width: 2)))),
+                  ],
+                ),
+                title: Text(admin.name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
+                subtitle: Text(conv.lastMessage?.content ?? 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
+                trailing: _buildTrailing(conv.unreadCount, conv.updatedAt?.toIso8601String(), subTextColor),
+                onTap: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (context) => IndividualChatScreen(conversationId: conv.id, otherUserId: admin.id, name: admin.name, avatar: AuthService().getFullUrl(admin.profileImage))));
+                  _loadData(silent: true);
+                },
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 

@@ -37,6 +37,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   late TabController _tabController;
   final GlobalKey<StatusTabContentState> _statusTabKey = GlobalKey<StatusTabContentState>();
   StreamSubscription? _socketSubscription;
+  bool _isGroupsExpanded = true;
   
   // Search state
   bool _isSearching = false;
@@ -827,44 +828,41 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   }
 
   Widget _buildChatList() {
-    var allItems = [
-      ..._conversations.map((c) => {'type': 'individual', 'data': c}),
-      ..._groups.map((g) => {'type': 'group', 'data': g}),
-    ];
+    // Separate groups and individual conversations
+    var filteredConversations = _conversations;
+    var filteredGroups = _groups;
 
     // Filter by search query
     if (_searchQuery.isNotEmpty) {
-      allItems = allItems.where((item) {
-        if (item['type'] == 'group') {
-          final group = item['data'] as Map;
-          return (group['name'] ?? '').toString().toLowerCase().contains(_searchQuery);
-        } else {
-          final conv = item['data'] as Conversation;
-          final otherParticipant = conv.participants.firstWhere(
-            (p) => p.id != _currentUserId,
-            orElse: () => conv.participants.first,
-          );
-          return otherParticipant.name.toLowerCase().contains(_searchQuery);
-        }
+      final query = _searchQuery.toLowerCase();
+      filteredConversations = filteredConversations.where((conv) {
+        final otherParticipant = conv.participants.firstWhere(
+          (p) => p.id != _currentUserId,
+          orElse: () => conv.participants.first,
+        );
+        return otherParticipant.name.toLowerCase().contains(query);
+      }).toList();
+
+      filteredGroups = filteredGroups.where((g) {
+        return (g['name'] ?? '').toString().toLowerCase().contains(query);
       }).toList();
     }
 
-    // Sort all by last updated
-    allItems.sort((a, b) {
-      DateTime da = a['type'] == 'individual'
-          ? (a['data'] as Conversation).updatedAt ??
-                DateTime.fromMillisecondsSinceEpoch(0)
-          : DateTime.tryParse((a['data'] as Map)['updatedAt'] ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-      DateTime db = b['type'] == 'individual'
-          ? (b['data'] as Conversation).updatedAt ??
-                DateTime.fromMillisecondsSinceEpoch(0)
-          : DateTime.tryParse((b['data'] as Map)['updatedAt'] ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
+    // Sort conversations by last updated
+    filteredConversations.sort((a, b) {
+      DateTime da = a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
     });
 
-    if (allItems.isEmpty) {
+    // Sort groups by last updated
+    filteredGroups.sort((a, b) {
+      DateTime da = DateTime.tryParse(a['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = DateTime.tryParse(b['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    });
+
+    if (filteredConversations.isEmpty && filteredGroups.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -881,210 +879,272 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.grey[400]! : Colors.black54;
 
-    return ListView.separated(
+    final TextStyle headerStyle = TextStyle(
+      color: isDark ? const Color(0xFF8A939B) : Colors.grey[600],
+      fontSize: 12,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 1.3,
+    );
+
+    return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: allItems.length,
-      separatorBuilder: (context, index) =>
-          Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
-      itemBuilder: (context, index) {
-        final item = allItems[index];
-
-        if (item['type'] == 'group') {
-          final group = item['data'] as Map;
-          final lastMsg = group['lastMessage'];
-          final timeStr = lastMsg?['timestamp'] != null
-              ? DateFormat.jm().format(
-                  DateTime.parse(lastMsg['timestamp']).toLocal(),
-                )
-              : '';
-
-          return GestureDetector(
-            onLongPress: () => _showGroupOptions(context, group),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: CircleAvatar(
-              radius: 28,
-              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-              backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
-                  ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
-                  : null,
-              child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
-                  ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
-                  : null,
-            ),
-            title: Text(
-              group['name'],
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor),
-            ),
-            subtitle: Row(
-              children: [
-                if (lastMsg != null) ...[
-                  Text(
-                    '~${lastMsg['senderName'] ?? 'Member'}: ',
-                    style: TextStyle(color: subTextColor, fontSize: 14),
-                  ),
-                ],
-                Expanded(
-                  child: Text(
-                    lastMsg?['content'] ?? 'No messages yet',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: subTextColor, fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  timeStr,
-                  style: TextStyle(
-                    color: (group['unreadCount'] ?? 0) > 0 ? const Color(0xFF25D366) : Colors.grey[500],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if ((group['unreadCount'] ?? 0) > 0)
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF25D366),
-                      shape: BoxShape.circle,
+      children: [
+        // ── GROUPS Section (Collapsible Accordion) ──
+        if (filteredGroups.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isGroupsExpanded = !_isGroupsExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('GROUPS', style: headerStyle),
+                    Icon(
+                      _isGroupsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: isDark ? const Color(0xFF8A939B) : Colors.grey[600],
                     ),
-                    child: Text(
-                      '${group['unreadCount']}',
-                      style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  )
-                else
-                  const SizedBox(height: 24), // Maintain height consistency
-              ],
-            ),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => GroupChatPage(groupId: group['_id'], name: group['name']),
+                  ],
                 ),
+              ),
+            ),
+          ),
+          
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredGroups.length,
+              separatorBuilder: (context, index) =>
+                  Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
+              itemBuilder: (context, index) {
+                final group = filteredGroups[index] as Map;
+                final lastMsg = group['lastMessage'];
+                final timeStr = lastMsg?['timestamp'] != null
+                    ? DateFormat.jm().format(
+                        DateTime.parse(lastMsg['timestamp']).toLocal(),
+                      )
+                    : '';
+
+                return GestureDetector(
+                  onLongPress: () => _showGroupOptions(context, group),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: CircleAvatar(
+                      radius: 28,
+                      backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                      backgroundImage: (group['profileImage'] != null && group['profileImage'].toString().isNotEmpty)
+                          ? NetworkImage(AuthService().getFullUrl(group['profileImage'].toString())!)
+                          : null,
+                      child: (group['profileImage'] == null || group['profileImage'].toString().isEmpty)
+                          ? Icon(Icons.groups, size: 28, color: isDark ? Colors.white70 : Colors.grey[600])
+                          : null,
+                    ),
+                    title: Text(
+                      group['name'],
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor),
+                    ),
+                    subtitle: Row(
+                      children: [
+                        if (lastMsg != null) ...[
+                          Text(
+                            '~${lastMsg['senderName'] ?? 'Member'}: ',
+                            style: TextStyle(color: subTextColor, fontSize: 14),
+                          ),
+                        ],
+                        Expanded(
+                          child: Text(
+                            lastMsg?['content'] ?? 'No messages yet',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: subTextColor, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          timeStr,
+                          style: TextStyle(
+                            color: (group['unreadCount'] ?? 0) > 0 ? const Color(0xFF25D366) : Colors.grey[500],
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if ((group['unreadCount'] ?? 0) > 0)
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF25D366),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${group['unreadCount']}',
+                              style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 24),
+                      ],
+                    ),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GroupChatPage(groupId: group['_id'], name: group['name']),
+                        ),
+                      );
+                      if (mounted) _loadData(silent: true);
+                    },
+                  ),
+                );
+              },
+            ),
+            crossFadeState: _isGroupsExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // ── DIRECT MESSAGES Section ──
+        if (filteredConversations.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 4.0),
+              child: Text('DIRECT MESSAGES', style: headerStyle),
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredConversations.length,
+            separatorBuilder: (context, index) =>
+                Divider(color: isDark ? const Color(0xFF1F2C34) : Colors.black12, thickness: 0.2, height: 1, indent: 85),
+            itemBuilder: (context, index) {
+              final conversation = filteredConversations[index];
+              final otherParticipant = conversation.participants.firstWhere(
+                (p) => p.id != _currentUserId,
+                orElse: () => conversation.participants.first,
               );
-              if (mounted) _loadData(silent: true);
+              final bool isOnline = _onlineStatuses[otherParticipant.id] ?? false;
+              final lastMsgIndividual = conversation.lastMessage;
+              final timeStrIndividual = lastMsgIndividual?.timestamp != null
+                  ? DateFormat.jm().format(lastMsgIndividual!.timestamp!.toLocal())
+                  : '';
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                leading: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
+                      backgroundImage: (otherParticipant.profileImage != null && otherParticipant.profileImage!.isNotEmpty)
+                          ? NetworkImage(AuthService().getFullUrl(otherParticipant.profileImage)!)
+                          : null,
+                      child: (otherParticipant.profileImage == null || otherParticipant.profileImage!.isEmpty)
+                          ? Text(
+                              otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
+                              style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    if (isOnline)
+                      Positioned(
+                        right: 2,
+                        bottom: 2,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF25D366),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111B21) : Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                title: Text(
+                  otherParticipant.name,
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor),
+                ),
+                subtitle: Row(
+                  children: [
+                    if (lastMsgIndividual?.type == 'audio')
+                      const Icon(Icons.mic, size: 16, color: Colors.grey),
+                    if (lastMsgIndividual?.type == 'image')
+                      const Icon(Icons.image, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        lastMsgIndividual?.content ?? 'No messages',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: subTextColor, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      timeStrIndividual,
+                      style: TextStyle(
+                        color: conversation.unreadCount > 0 ? const Color(0xFF25D366) : Colors.grey[500],
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (conversation.unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF25D366),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${conversation.unreadCount}',
+                          style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 24),
+                  ],
+                ),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => IndividualChatPage(
+                        name: otherParticipant.name,
+                        avatar: AuthService().getFullUrl(otherParticipant.profileImage) ?? '',
+                        conversationId: conversation.id,
+                        receiverId: otherParticipant.id,
+                      ),
+                    ),
+                  );
+                  if (mounted) _loadData(silent: true);
+                },
+              );
             },
           ),
-        );
-        }
-
-        // Individual Chat logic
-        final conversation = item['data'] as Conversation;
-        final otherParticipant = conversation.participants.firstWhere(
-          (p) => p.id != _currentUserId,
-          orElse: () => conversation.participants.first,
-        );
-        final bool isOnline = _onlineStatuses[otherParticipant.id] ?? false;
-        final lastMsgIndividual = conversation.lastMessage;
-        final timeStrIndividual = lastMsgIndividual?.timestamp != null
-            ? DateFormat.jm().format(lastMsgIndividual!.timestamp!.toLocal())
-            : '';
-
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                backgroundImage: (otherParticipant.profileImage != null && otherParticipant.profileImage!.isNotEmpty)
-                    ? NetworkImage(AuthService().getFullUrl(otherParticipant.profileImage)!)
-                    : null,
-                child: (otherParticipant.profileImage == null || otherParticipant.profileImage!.isEmpty)
-                    ? Text(
-                        otherParticipant.name.isNotEmpty ? otherParticipant.name[0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 22, color: Color(0xFF1A73E8), fontWeight: FontWeight.bold),
-                      )
-                    : null,
-              ),
-              if (isOnline)
-                Positioned(
-                  right: 2,
-                  bottom: 2,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF25D366),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111B21) : Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          title: Text(
-            otherParticipant.name,
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor),
-          ),
-          subtitle: Row(
-            children: [
-              if (lastMsgIndividual?.type == 'audio')
-                const Icon(Icons.mic, size: 16, color: Colors.grey),
-              if (lastMsgIndividual?.type == 'image')
-                const Icon(Icons.image, size: 16, color: Colors.grey),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  lastMsgIndividual?.content ?? 'No messages',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: subTextColor, fontSize: 14),
-                ),
-              ),
-            ],
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                timeStrIndividual,
-                style: TextStyle(
-                  color: conversation.unreadCount > 0 ? const Color(0xFF25D366) : Colors.grey[500],
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              if (conversation.unreadCount > 0)
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF25D366),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '${conversation.unreadCount}',
-                    style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                )
-              else
-                const SizedBox(height: 24),
-            ],
-          ),
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => IndividualChatPage(
-                  name: otherParticipant.name,
-                  avatar: AuthService().getFullUrl(otherParticipant.profileImage) ?? '',
-                  conversationId: conversation.id,
-                  receiverId: otherParticipant.id,
-                ),
-              ),
-            );
-            if (mounted) _loadData(silent: true);
-          },
-        );
-      },
+        ],
+      ],
     );
   }
 
