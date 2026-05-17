@@ -70,6 +70,8 @@ dependencies:
   shimmer: ^3.0.0
   image_picker: ^1.2.2
   audio_session: ^0.2.3
+  flutter_ringtone_player: any
+
 
 dev_dependencies:
   flutter_test:

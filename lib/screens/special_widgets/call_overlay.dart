@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../services/chat/call_service.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/auth_service.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 
 class CallOverlayManager {
   static OverlayEntry? _overlayEntry;
@@ -368,10 +369,10 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                     child: CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.white24,
-                      backgroundImage: (widget.avatar.isNotEmpty)
+                      backgroundImage: (widget.avatar.isNotEmpty && widget.avatar != 'null' && AuthService().getFullUrl(widget.avatar) != null)
                           ? NetworkImage(AuthService().getFullUrl(widget.avatar)!)
                           : null,
-                      child: (widget.avatar.isEmpty)
+                      child: (widget.avatar.isEmpty || widget.avatar == 'null' || AuthService().getFullUrl(widget.avatar) == null)
                           ? Text(
                               widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
                               style: const TextStyle(
@@ -498,10 +499,10 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: Colors.white24,
-                  backgroundImage: (widget.avatar.isNotEmpty)
+                  backgroundImage: (widget.avatar.isNotEmpty && widget.avatar != 'null' && AuthService().getFullUrl(widget.avatar) != null)
                       ? NetworkImage(AuthService().getFullUrl(widget.avatar)!)
                       : null,
-                  child: (widget.avatar.isEmpty)
+                  child: (widget.avatar.isEmpty || widget.avatar == 'null' || AuthService().getFullUrl(widget.avatar) == null)
                       ? Text(
                           widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
@@ -751,11 +752,18 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
   Future<void> _playRingtone() async {
     try {
-      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      await _audioPlayer.play(UrlSource(
-        'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
-      ));
-    } catch (_) {}
+      await FlutterRingtonePlayer().playRingtone(
+        looping: true,
+        asAlarm: false,
+      );
+    } catch (_) {
+      try {
+        await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+        await _audioPlayer.play(UrlSource(
+          'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
+        ));
+      } catch (_) {}
+    }
   }
 
   Future<void> _playHangupSound() async {
@@ -768,6 +776,9 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   }
 
   Future<void> _stopSounds() async {
+    try {
+      await FlutterRingtonePlayer().stop();
+    } catch (_) {}
     try {
       await _audioPlayer.stop();
     } catch (_) {}
@@ -862,10 +873,10 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                 child: CircleAvatar(
                   radius: 60,
                   backgroundColor: Colors.blueAccent.withOpacity(0.3),
-                  backgroundImage: (widget.callerImage.isNotEmpty)
+                  backgroundImage: (widget.callerImage.isNotEmpty && widget.callerImage != 'null' && AuthService().getFullUrl(widget.callerImage) != null)
                       ? NetworkImage(AuthService().getFullUrl(widget.callerImage)!)
                       : null,
-                  child: (widget.callerImage.isEmpty)
+                  child: (widget.callerImage.isEmpty || widget.callerImage == 'null' || AuthService().getFullUrl(widget.callerImage) == null)
                       ? Text(
                           widget.callerName.isNotEmpty ? widget.callerName[0].toUpperCase() : '?',
                           style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
