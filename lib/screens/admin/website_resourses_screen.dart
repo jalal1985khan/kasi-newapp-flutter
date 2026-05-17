@@ -468,11 +468,42 @@ class _WebsiteResourcesScreenState extends State<WebsiteResourcesScreen> {
     );
   }
 
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required String tooltip,
+  }) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
+    final Color cardBg = isDark ? const Color(0xFF111B21) : Colors.white;
+
+    final sortedResources = List<WebsiteResource>.from(_resources)
+      ..sort((a, b) => a.sNo.compareTo(b.sNo));
 
     return AdminLayout(
       title: 'Resources',
@@ -486,66 +517,233 @@ class _WebsiteResourcesScreenState extends State<WebsiteResourcesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Top Directory Stats Banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isDark 
+                          ? [const Color(0xFF1F2C34), const Color(0xFF111B21)] 
+                          : [const Color(0xFF00A884).withOpacity(0.06), const Color(0xFF00A884).withOpacity(0.01)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFF00A884).withOpacity(0.12),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00A884).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.folder_shared_rounded, color: Color(0xFF00A884), size: 24),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Resource Directory',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Quick access portals for employees',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: subTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00A884),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${_resources.length} Links',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Add New Resource Action Trigger
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _showAddEditDialog(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add New Resource', style: TextStyle(fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text('Add New Resource', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.3)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00A884),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
+                      shadowColor: const Color(0xFF00A884).withOpacity(0.3),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                // Section Title
+                Text(
+                  'REGISTERED WEB ASSETS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white38 : Colors.black38,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 if (_resources.isEmpty)
-                  Center(child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40.0),
-                    child: Text('No resources found.', style: TextStyle(color: subTextColor)),
-                  ))
-                else
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(isDark ? const Color(0xFF202C33) : Colors.grey[200]),
-                      columns: [
-                        DataColumn(label: Text('S.No', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Name', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('URL', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Actions', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
-                      ],
-                      rows: _resources.map((resource) => DataRow(
-                        cells: [
-                          DataCell(Text(resource.sNo.toString(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black87))),
-                          DataCell(Text(resource.name, style: TextStyle(color: isDark ? Colors.white70 : Colors.black87))),
-                          DataCell(SizedBox(
-                            width: 150,
-                            child: Text(resource.url, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 12)),
-                          )),
-                          DataCell(
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.visibility_outlined, color: Color(0xFF25D366), size: 20),
-                                  onPressed: () => _showWebViewDialog(resource.url),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20),
-                                  onPressed: () => _showAddEditDialog(resource: resource),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                  onPressed: () => _deleteResource(resource),
-                                ),
-                              ],
-                            ),
-                          ),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 60.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.link_off_rounded, size: 48, color: subTextColor.withOpacity(0.3)),
+                          const SizedBox(height: 12),
+                          Text('No web resources found.', style: TextStyle(color: subTextColor, fontSize: 14)),
                         ],
-                      )).toList(),
+                      ),
                     ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: sortedResources.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final resource = sortedResources[index];
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              // Elegant S.No badge
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00A884).withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    resource.sNo.toString(),
+                                    style: const TextStyle(
+                                      color: Color(0xFF00A884),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+
+                              // Details (Name & URL)
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      resource.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      resource.url,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: subTextColor,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Premium spaced Action Row
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildActionButton(
+                                    icon: Icons.visibility_outlined,
+                                    color: const Color(0xFF25D366),
+                                    onTap: () => _showWebViewDialog(resource.url),
+                                    tooltip: 'View Resource',
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildActionButton(
+                                    icon: Icons.edit_rounded,
+                                    color: Colors.blueAccent,
+                                    onTap: () => _showAddEditDialog(resource: resource),
+                                    tooltip: 'Edit',
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildActionButton(
+                                    icon: Icons.delete_rounded,
+                                    color: Colors.redAccent,
+                                    onTap: () => _deleteResource(resource),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
               ],
             ),
