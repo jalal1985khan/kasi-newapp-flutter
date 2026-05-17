@@ -60,10 +60,15 @@ class SocketService with WidgetsBindingObserver {
             .setAuth({'token': token})
             .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
             .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
+            .enableForceNew()
             .enableReconnection()
             .setReconnectionDelay(2000)
             .setReconnectionAttempts(999999)
-            .build(),
+            .build()
+          ..addAll({
+            'forceNew': true,
+            'force new connection': true,
+          }),
       );
 
       _setupBasicListeners(socketUrl);
@@ -126,6 +131,11 @@ class SocketService with WidgetsBindingObserver {
 
         if (newToken != null) {
           print('✅ [Socket] Token refreshed. Re-initializing socket...');
+          try {
+            if (socket != null && socket!.io.options != null) {
+              socket!.io.options!['auth'] = {'token': newToken};
+            }
+          } catch (_) {}
           // Fully dispose and reconnect to ensure the NEW token is used
           socket?.dispose();
           socket = null;
