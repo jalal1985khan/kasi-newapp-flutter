@@ -248,6 +248,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void _showEditDetailsDialog() {
     final nameCtrl = TextEditingController(text: _user?.name ?? '');
     final emailCtrl = TextEditingController(text: _user?.email ?? '');
+    bool isSubmitting = false;
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
@@ -259,77 +260,124 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            left: 20,
-            right: 20,
-            top: 20,
-          ),
-          decoration: BoxDecoration(
-            color: modalBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white12 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                left: 20,
+                right: 20,
+                top: 20,
+              ),
+              decoration: BoxDecoration(
+                color: modalBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white12 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Edit Profile',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Keep your profile information up to date.',
-                style: TextStyle(color: subTextColor, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              _buildSettingsTextField(nameCtrl, 'Full Name', false, isDark, textColor),
-              const SizedBox(height: 16),
-              _buildSettingsTextField(emailCtrl, 'Email Address (System Only)', false, isDark, textColor, enabled: false),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Future API integration
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00A884),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
+                  const SizedBox(height: 24),
+                  Text(
+                    'Edit Profile',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
                   ),
-                  child: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Keep your profile information up to date.',
+                    style: TextStyle(color: subTextColor, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSettingsTextField(nameCtrl, 'Full Name', false, isDark, textColor),
+                  const SizedBox(height: 16),
+                  _buildSettingsTextField(emailCtrl, 'Email Address', false, isDark, textColor),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final newName = nameCtrl.text.trim();
+                              final newEmail = emailCtrl.text.trim();
+
+                              if (newName.isEmpty || newEmail.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please fill all fields')),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => isSubmitting = true);
+
+                              final result = await AuthService().updateProfile(
+                                name: newName,
+                                email: newEmail,
+                              );
+
+                              if (!mounted) return;
+                              setModalState(() => isSubmitting = false);
+
+                              if (result['success'] == true) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result['message'] ?? 'Profile updated successfully'),
+                                    backgroundColor: const Color(0xFF25D366),
+                                  ),
+                                );
+                                await _loadUserDetails();
+                                Navigator.pop(context);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result['message'] ?? 'Failed to update profile'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00A884),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Discard Changes', style: TextStyle(color: subTextColor)),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Discard Changes', style: TextStyle(color: subTextColor)),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -472,9 +520,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'ACCOUNT INFORMATION',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'ACCOUNT INFORMATION',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor, letterSpacing: 1.2),
+                              ),
+                              GestureDetector(
+                                onTap: _showEditDetailsDialog,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00A884).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.edit_rounded, size: 14, color: Color(0xFF00A884)),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Edit',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF00A884)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                           _buildSectionCard(
