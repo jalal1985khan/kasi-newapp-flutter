@@ -39,118 +39,343 @@ class _WebsiteResourcesScreenState extends State<WebsiteResourcesScreen> {
     final sNoCtrl = TextEditingController(text: resource?.sNo.toString() ?? '');
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color modalBg = isDark ? const Color(0xFF0B141A) : Colors.white;
+    final Color cardBg = isDark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5);
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final Color accentColor = const Color(0xFF00A884);
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: modalBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            resource == null ? 'Add New Resource' : 'Edit Resource',
-            style: TextStyle(color: textColor),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                style: TextStyle(color: textColor),
-                decoration: InputDecoration(
-                  labelText: 'Website Name',
-                  labelStyle: TextStyle(color: subTextColor),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: urlCtrl,
-                style: TextStyle(color: textColor),
-                decoration: InputDecoration(
-                  labelText: 'URL (e.g. https://google.com)',
-                  labelStyle: TextStyle(color: subTextColor),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: sNoCtrl,
-                keyboardType: TextInputType.number,
-                style: TextStyle(color: textColor),
-                decoration: InputDecoration(
-                  labelText: 'Serial Number',
-                  labelStyle: TextStyle(color: subTextColor),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          bool isSaving = false;
+          String? nameError;
+          String? urlError;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-            ElevatedButton(
-              onPressed: () async {
-                bool success;
-                if (resource == null) {
-                  success = await _resourceService.createResource(
-                    nameCtrl.text,
-                    urlCtrl.text,
-                    int.tryParse(sNoCtrl.text) ?? 0,
-                  );
-                } else {
-                  success = await _resourceService.updateResource(resource.id, {
-                    'name': nameCtrl.text,
-                    'url': urlCtrl.text,
-                    'sNo': int.tryParse(sNoCtrl.text) ?? 0,
-                  });
-                }
-                if (success && mounted) {
-                  Navigator.pop(context);
-                  _fetchResources();
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A884), foregroundColor: Colors.white),
-              child: const Text('Save'),
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              maxChildSize: 0.9,
+              minChildSize: 0.4,
+              expand: false,
+              builder: (context, scrollController) => Container(
+                decoration: BoxDecoration(
+                  color: modalBg,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Top Drag Indicator
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                resource == null ? 'Add Website Resource' : 'Edit Website Resource',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                resource == null
+                                    ? 'Create a new resource link for employees'
+                                    : 'Modify existing resource parameters',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: subTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: isDark ? Colors.white10 : Colors.black12,
+                              child: Icon(Icons.close_rounded, size: 18, color: textColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // Body List
+                    Expanded(
+                      child: ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(24),
+                        children: [
+                          // Website Name Input
+                          Text(
+                            'WEBSITE NAME',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: nameError != null ? Colors.redAccent : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: nameCtrl,
+                              style: TextStyle(color: textColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter name (e.g. Employee HR Portal)',
+                                hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                                prefixIcon: Icon(Icons.language_rounded, color: accentColor, size: 22),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+                          ),
+                          if (nameError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(nameError!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                          ],
+
+                          const SizedBox(height: 20),
+
+                          // URL Input
+                          Text(
+                            'WEBSITE URL',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: urlError != null ? Colors.redAccent : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: urlCtrl,
+                              style: TextStyle(color: textColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter URL (https://...)',
+                                hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                                prefixIcon: Icon(Icons.link_rounded, color: accentColor, size: 22),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+                          ),
+                          if (urlError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(urlError!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                          ],
+
+                          const SizedBox(height: 20),
+
+                          // Display Order Input
+                          Text(
+                            'DISPLAY ORDER (SERIAL NO.)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextField(
+                              controller: sNoCtrl,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter order number (e.g. 1)',
+                                hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                                prefixIcon: Icon(Icons.sort_rounded, color: accentColor, size: 22),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 36),
+
+                          // Save Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: isSaving ? null : () async {
+                                final name = nameCtrl.text.trim();
+                                final url = urlCtrl.text.trim();
+
+                                setModalState(() {
+                                  nameError = name.isEmpty ? 'Website name is required' : null;
+                                  urlError = url.isEmpty ? 'URL is required' : null;
+                                });
+
+                                if (name.isEmpty || url.isEmpty) return;
+
+                                setModalState(() {
+                                  isSaving = true;
+                                });
+
+                                bool success;
+                                if (resource == null) {
+                                  success = await _resourceService.createResource(
+                                    name,
+                                    url,
+                                    int.tryParse(sNoCtrl.text) ?? 0,
+                                  );
+                                } else {
+                                  success = await _resourceService.updateResource(resource.id, {
+                                    'name': name,
+                                    'url': url,
+                                    'sNo': int.tryParse(sNoCtrl.text) ?? 0,
+                                  });
+                                }
+
+                                if (success && mounted) {
+                                  Navigator.pop(context);
+                                  _fetchResources();
+                                } else {
+                                  setModalState(() {
+                                    isSaving = false;
+                                  });
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: accentColor,
+                                foregroundColor: Colors.white,
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : Text(
+                                      resource == null ? 'Create Resource' : 'Save Changes',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
   void _deleteResource(WebsiteResource resource) async {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color modalBg = isDark ? const Color(0xFF0B141A) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white60 : Colors.black54;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: modalBg,
-        title: Text('Delete Resource', style: TextStyle(color: textColor)),
-        content: Text('Are you sure you want to delete ${resource.name}?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              'Delete Resource',
+              style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete "${resource.name}"? This action cannot be undone.',
+          style: TextStyle(color: subTextColor, fontSize: 14, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54))),
           TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       )
