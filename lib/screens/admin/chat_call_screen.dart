@@ -195,11 +195,13 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     await _loadData();
   }
 
-  void _showMessageDialog(BuildContext context) async {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
+  void _showMessageDialog(BuildContext outerContext) async {
+    final bool isDark = Theme.of(outerContext).brightness == Brightness.dark;
+    final Color modalBg = isDark ? const Color(0xFF0B141A) : Colors.white; // WhatsApp slate dark bg
+    final Color cardBg = isDark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5);
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+    final Color subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final Color accentColor = const Color(0xFF00A884); // WhatsApp green
 
     final allPartners = await _chatService.getPartners();
     if (!mounted) return;
@@ -208,70 +210,221 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         .where((p) => p['role'] != 'super_admin')
         .toList();
 
+    final TextEditingController searchController = TextEditingController();
+    String searchQuery = '';
+
     showModalBottomSheet(
-      context: context,
+      context: outerContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: modalBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'New Message',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (context, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: modalBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
-              ),
-              Divider(color: isDark ? Colors.white10 : Colors.black12),
-              Expanded(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFF00A884),
-                        child: Icon(Icons.group_add, color: Colors.white),
-                      ),
-                      title: Text(
-                        'New Group',
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _showCreateGroupDialog(context);
-                      },
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top drag indicator
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    Divider(color: isDark ? Colors.white10 : Colors.black12),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: partners.length,
-                        itemBuilder: (context, index) {
-                          final partner = partners[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                              child: Text(
-                                partner['name'][0].toUpperCase(),
-                                style: const TextStyle(color: Color(0xFF1A73E8)),
-                              ),
+                  ),
+                ),
+
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Contact',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
                             ),
-                            title: Text(partner['name'], style: TextStyle(color: textColor)),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${partners.length} contacts available',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, color: textColor),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1, thickness: 0.5),
+
+                // Live Search Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      controller: searchController,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      onChanged: (val) {
+                        setModalState(() {
+                          searchQuery = val.trim().toLowerCase();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search contacts...',
+                        hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                        prefixIcon: Icon(Icons.search_rounded, color: subTextColor, size: 20),
+                        suffixIcon: searchController.text.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () {
+                                  searchController.clear();
+                                  setModalState(() {
+                                    searchQuery = '';
+                                  });
+                                },
+                                child: Icon(Icons.clear_rounded, color: subTextColor, size: 18),
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Actions & Contacts List
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    children: [
+                      // Only show New Group button when not searching
+                      if (searchQuery.isEmpty) ...[
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                          leading: CircleAvatar(
+                            radius: 22,
+                            backgroundColor: accentColor.withOpacity(0.12),
+                            child: Icon(Icons.group_add_rounded, color: accentColor, size: 22),
+                          ),
+                          title: Text(
+                            'New Group',
+                            style: TextStyle(
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Create a group conversation',
+                            style: TextStyle(color: subTextColor, fontSize: 12),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context); // Close "New Message" sheet safely
+                            _showCreateGroupDialog(outerContext); // Use outer context to display new group dialog!
+                          },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: Text(
+                            'CONTACTS ON DAILY NEWS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: subTextColor,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // Contacts list
+                      ...() {
+                        final filteredList = partners.where((p) {
+                          final name = (p['name'] ?? '').toString().toLowerCase();
+                          final username = (p['username'] ?? '').toString().toLowerCase();
+                          return name.contains(searchQuery) || username.contains(searchQuery);
+                        }).toList();
+
+                        if (filteredList.isEmpty) {
+                          return [
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 40),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.people_outline_rounded, size: 48, color: subTextColor),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No contacts found',
+                                      style: TextStyle(color: subTextColor, fontSize: 15),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          ];
+                        }
+
+                        return filteredList.map((partner) {
+                          final String firstLetter = partner['name'] != null && partner['name'].toString().isNotEmpty
+                              ? partner['name'][0].toUpperCase()
+                              : '?';
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                            leading: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: accentColor.withOpacity(0.12),
+                              backgroundImage: partner['profileImage'] != null && partner['profileImage'].toString().isNotEmpty
+                                  ? NetworkImage(partner['profileImage'])
+                                  : null,
+                              child: partner['profileImage'] == null || partner['profileImage'].toString().isEmpty
+                                  ? Text(
+                                      firstLetter,
+                                      style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 15),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(
+                              partner['name'] ?? '',
+                              style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
                             subtitle: Text(
-                              partner['role']
-                                  .toString()
-                                  .replaceAll('_', ' ')
-                                  .toUpperCase(),
+                              '@${partner['username'] ?? ''} • ${partner['role'].toString().replaceAll('_', ' ').toUpperCase()}',
                               style: TextStyle(fontSize: 12, color: subTextColor),
                             ),
                             onTap: () async {
@@ -283,7 +436,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                                   Navigator.pop(context);
                                   _onRefresh();
                                   await Navigator.push(
-                                    context,
+                                    outerContext,
                                     MaterialPageRoute(
                                       builder: (context) => IndividualChatPage(
                                         name: partner['name'],
@@ -300,24 +453,26 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                               }
                             },
                           );
-                        },
-                      ),
-                    ),
-                  ],
+                        }).toList();
+                      }(),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  void _showCallDialog(BuildContext context) async {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
+  void _showCallDialog(BuildContext outerContext) async {
+    final bool isDark = Theme.of(outerContext).brightness == Brightness.dark;
+    final Color modalBg = isDark ? const Color(0xFF0B141A) : Colors.white; // WhatsApp slate dark bg
+    final Color cardBg = isDark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5);
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+    final Color subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final Color accentColor = const Color(0xFF00A884); // WhatsApp green
 
     final allPartners = await _chatService.getPartners();
     if (!mounted) return;
@@ -326,66 +481,221 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         .where((p) => p['role'] != 'super_admin')
         .toList();
 
+    final TextEditingController searchController = TextEditingController();
+    String searchQuery = '';
+
     showModalBottomSheet(
-      context: context,
+      context: outerContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: modalBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Select Contact to Call',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (context, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: modalBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
-              ),
-              Divider(color: isDark ? Colors.white10 : Colors.black12),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: partners.length,
-                  itemBuilder: (context, index) {
-                    final partner = partners[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
-                        child: Text(
-                          partner['name'][0].toUpperCase(),
-                          style: const TextStyle(color: Color(0xFF00A884)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top drag indicator
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Contact to Call',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${partners.length} contacts available',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, color: textColor),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1, thickness: 0.5),
+
+                // Live Search Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      controller: searchController,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      onChanged: (val) {
+                        setModalState(() {
+                          searchQuery = val.trim().toLowerCase();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search contacts...',
+                        hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                        prefixIcon: Icon(Icons.search_rounded, color: subTextColor, size: 20),
+                        suffixIcon: searchController.text.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () {
+                                  searchController.clear();
+                                  setModalState(() {
+                                    searchQuery = '';
+                                  });
+                                },
+                                child: Icon(Icons.clear_rounded, color: subTextColor, size: 18),
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Title
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Text(
+                    'CONTACTS ON DAILY NEWS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: subTextColor,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+
+                // Contacts list
+                Expanded(
+                  child: () {
+                    final filteredList = partners.where((p) {
+                      final name = (p['name'] ?? '').toString().toLowerCase();
+                      final username = (p['username'] ?? '').toString().toLowerCase();
+                      return name.contains(searchQuery) || username.contains(searchQuery);
+                    }).toList();
+
+                    if (filteredList.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.people_outline_rounded, size: 48, color: subTextColor),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No contacts found',
+                                style: TextStyle(color: subTextColor, fontSize: 15),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      title: Text(partner['name'], style: TextStyle(color: textColor)),
-                      subtitle: Text(
-                        partner['role']
-                            .toString()
-                            .replaceAll('_', ' ')
-                            .toUpperCase(),
-                        style: TextStyle(fontSize: 12, color: subTextColor),
-                      ),
-                      trailing: const Icon(Icons.call, color: Color(0xFF00A884)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        CallOverlayManager.show(
-                          context,
-                          partner['name'],
-                          AuthService().getFullUrl(partner['profileImage']) ?? '',
-                          partner['_id'],
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      itemCount: filteredList.length,
+                      itemBuilder: (context, index) {
+                        final partner = filteredList[index];
+                        final String firstLetter = partner['name'] != null && partner['name'].toString().isNotEmpty
+                            ? partner['name'][0].toUpperCase()
+                            : '?';
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                          leading: CircleAvatar(
+                            radius: 22,
+                            backgroundColor: accentColor.withOpacity(0.12),
+                            backgroundImage: partner['profileImage'] != null && partner['profileImage'].toString().isNotEmpty
+                                ? NetworkImage(partner['profileImage'])
+                                : null,
+                            child: partner['profileImage'] == null || partner['profileImage'].toString().isEmpty
+                                ? Text(
+                                    firstLetter,
+                                    style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 15),
+                                  )
+                                : null,
+                          ),
+                          title: Text(
+                            partner['name'] ?? '',
+                            style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                          subtitle: Text(
+                            '@${partner['username'] ?? ''} • ${partner['role'].toString().replaceAll('_', ' ').toUpperCase()}',
+                            style: TextStyle(fontSize: 12, color: subTextColor),
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.call, color: accentColor, size: 20),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            CallOverlayManager.show(
+                              outerContext,
+                              partner['name'],
+                              AuthService().getFullUrl(partner['profileImage']) ?? '',
+                              partner['_id'],
+                            );
+                          },
                         );
                       },
                     );
-                  },
+                  }(),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
