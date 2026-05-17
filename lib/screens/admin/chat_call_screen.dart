@@ -394,9 +394,11 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
 
   void _showCreateGroupDialog(BuildContext context) async {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color modalBg = isDark ? const Color(0xFF111B21) : Colors.white;
+    final Color modalBg = isDark ? const Color(0xFF0B141A) : Colors.white; // Slate WhatsApp dark bg
+    final Color cardBg = isDark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5);
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+    final Color subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final Color accentColor = const Color(0xFF00A884); // WhatsApp green
 
     final allPartners = await _chatService.getPartners();
     if (!mounted) return;
@@ -407,6 +409,9 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
 
     final List<String> selectedIds = [];
     final TextEditingController nameController = TextEditingController();
+    final TextEditingController searchController = TextEditingController();
+    String searchQuery = '';
+    bool isSaving = false;
 
     showModalBottomSheet(
       context: context,
@@ -414,128 +419,468 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          maxChildSize: 0.9,
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
           expand: false,
           builder: (context, scrollController) => Container(
             decoration: BoxDecoration(
               color: modalBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Create Group',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: selectedIds.isNotEmpty
-                            ? () async {
-                                final name = nameController.text.trim();
-                                if (name.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please enter group name'),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                final res = await _groupChatService.createGroup(
-                                  name: name,
-                                  memberIds: selectedIds,
-                                );
-                                if (res['success']) {
-                                  Navigator.pop(context);
-                                  _onRefresh();
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(res['error'] ?? 'Error'),
-                                    ),
-                                  );
-                                }
-                              }
-                            : null,
-                        child: Text(
-                          'Connect',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: selectedIds.isNotEmpty ? const Color(0xFF00A884) : subTextColor),
-                        ),
-                      ),
-                    ],
-                  ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    controller: nameController,
-                    style: TextStyle(color: textColor),
-                    decoration: InputDecoration(
-                      hintText: 'Enter group name...',
-                      hintStyle: TextStyle(color: subTextColor),
-                      border: const OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+              ],
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Drag Indicator
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 10, bottom: 8),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Divider(color: isDark ? Colors.white10 : Colors.black12),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: partners.length,
-                  itemBuilder: (context, index) {
-                    final partner = partners[index];
-                    final isSelected = selectedIds.contains(partner['_id']);
-                    return CheckboxListTile(
-                      value: isSelected,
-                      onChanged: (val) {
-                        setModalState(() {
-                          if (val == true)
-                            selectedIds.add(partner['_id']);
-                          else
-                            selectedIds.remove(partner['_id']);
-                        });
-                      },
-                      secondary: CircleAvatar(
-                        backgroundColor: const Color(
-                          0xFF1A73E8,
-                        ).withOpacity(0.1),
-                        child: Text(
-                          partner['name'][0].toUpperCase(),
-                          style: const TextStyle(color: Color(0xFF1A73E8)),
+
+                    // Header Title
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'New Group',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${selectedIds.length} of ${partners.length} selected',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: accentColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(Icons.close, color: textColor),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 1, thickness: 0.5),
+
+                    // Group Details Inputs
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          // Group Avatar Icon
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: accentColor.withOpacity(0.3), width: 1.5),
+                            ),
+                            child: Icon(
+                              Icons.camera_alt_rounded,
+                              color: accentColor,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextField(
+                              controller: nameController,
+                              style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                              maxLength: 25,
+                              decoration: InputDecoration(
+                                hintText: 'Type group subject here...',
+                                hintStyle: TextStyle(color: subTextColor, fontWeight: FontWeight.normal),
+                                counterText: '',
+                                labelText: 'Group Name',
+                                labelStyle: TextStyle(color: accentColor, fontSize: 13),
+                                floatingLabelBehavior: FloatingLabelBehavior.always,
+                                border: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: accentColor, width: 2),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: accentColor, width: 2),
+                                ),
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Horizontal List of Selected Members
+                    if (selectedIds.isNotEmpty) ...[
+                      Container(
+                        height: 90,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        color: cardBg.withOpacity(0.4),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: selectedIds.length,
+                          itemBuilder: (context, index) {
+                            final selId = selectedIds[index];
+                            final member = partners.firstWhere((p) => p['_id'] == selId);
+                            final String firstLetter = member['name'] != null && member['name'].toString().isNotEmpty
+                                ? member['name'][0].toUpperCase()
+                                : '?';
+
+                            return Container(
+                              margin: const EdgeInsets.only(right: 14),
+                              width: 60,
+                              child: Stack(
+                                children: [
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 24,
+                                        backgroundColor: accentColor.withOpacity(0.15),
+                                        backgroundImage: member['profileImage'] != null && member['profileImage'].toString().isNotEmpty
+                                            ? NetworkImage(member['profileImage'])
+                                            : null,
+                                        child: member['profileImage'] == null || member['profileImage'].toString().isEmpty
+                                            ? Text(
+                                                firstLetter,
+                                                style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        member['name'] ?? '',
+                                        style: TextStyle(fontSize: 11, color: textColor, overflow: TextOverflow.ellipsis),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                      ),
+                                    ],
+                                  ),
+                                  Positioned(
+                                    right: 2,
+                                    top: 0,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setModalState(() {
+                                          selectedIds.remove(selId);
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.grey,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      title: Text(partner['name'], style: TextStyle(color: textColor)),
-                      subtitle: Text(
-                        partner['role']
-                            .toString()
-                            .replaceAll('_', ' ')
-                            .toUpperCase(),
-                        style: TextStyle(fontSize: 12, color: subTextColor),
+                      const Divider(height: 1, thickness: 0.5),
+                    ],
+
+                    // Search Member Bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: TextField(
+                          controller: searchController,
+                          style: TextStyle(color: textColor, fontSize: 14),
+                          onChanged: (val) {
+                            setModalState(() {
+                              searchQuery = val.trim().toLowerCase();
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search contacts...',
+                            hintStyle: TextStyle(color: subTextColor, fontSize: 14),
+                            prefixIcon: Icon(Icons.search_rounded, color: subTextColor, size: 20),
+                            suffixIcon: searchController.text.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () {
+                                      searchController.clear();
+                                      setModalState(() {
+                                        searchQuery = '';
+                                      });
+                                    },
+                                    child: Icon(Icons.clear_rounded, color: subTextColor, size: 18),
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
                       ),
-                    );
-                  },
+                    ),
+
+                    // Contact List Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: Text(
+                        'CONTACTS ON DAILY NEWS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: subTextColor,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+
+                    // Contacts List
+                    Expanded(
+                      child: () {
+                        final filteredList = partners.where((p) {
+                          final name = (p['name'] ?? '').toString().toLowerCase();
+                          final username = (p['username'] ?? '').toString().toLowerCase();
+                          return name.contains(searchQuery) || username.contains(searchQuery);
+                        }).toList();
+
+                        if (filteredList.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.people_outline_rounded, size: 48, color: subTextColor),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No contacts found',
+                                    style: TextStyle(color: subTextColor, fontSize: 15),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final partner = filteredList[index];
+                            final isSelected = selectedIds.contains(partner['_id']);
+                            final String firstLetter = partner['name'] != null && partner['name'].toString().isNotEmpty
+                                ? partner['name'][0].toUpperCase()
+                                : '?';
+
+                            return InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  if (isSelected) {
+                                    selectedIds.remove(partner['_id']);
+                                  } else {
+                                    selectedIds.add(partner['_id']);
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                margin: const EdgeInsets.symmetric(vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? accentColor.withOpacity(0.04) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Custom Avatar
+                                    Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 24,
+                                          backgroundColor: accentColor.withOpacity(0.12),
+                                          backgroundImage: partner['profileImage'] != null && partner['profileImage'].toString().isNotEmpty
+                                              ? NetworkImage(partner['profileImage'])
+                                              : null,
+                                          child: partner['profileImage'] == null || partner['profileImage'].toString().isEmpty
+                                              ? Text(
+                                                  firstLetter,
+                                                  style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 16),
+                                                )
+                                              : null,
+                                        ),
+                                        if (isSelected)
+                                          Positioned(
+                                            right: 0,
+                                            bottom: 0,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(2),
+                                              decoration: BoxDecoration(
+                                                color: accentColor,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: modalBg, width: 1.5),
+                                              ),
+                                              child: const Icon(
+                                                Icons.check,
+                                                size: 12,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 14),
+                                    // User details
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            partner['name'] ?? '',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                              color: textColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            '@${partner['username'] ?? ''} • ${partner['role'].toString().toUpperCase()}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: subTextColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Checkmark trailing selector
+                                    Container(
+                                      width: 22,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isSelected ? accentColor : (isDark ? Colors.white24 : Colors.black26),
+                                          width: 2,
+                                        ),
+                                        color: isSelected ? accentColor : Colors.transparent,
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }(),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+
+                // Floating Next/Confirm Button inside the Dialog
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: FloatingActionButton(
+                    onPressed: (selectedIds.isNotEmpty && !isSaving)
+                        ? () async {
+                            final name = nameController.text.trim();
+                            if (name.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please enter a group name'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                              return;
+                            }
+                            setModalState(() {
+                              isSaving = true;
+                            });
+
+                            final res = await _groupChatService.createGroup(
+                              name: name,
+                              memberIds: selectedIds,
+                            );
+
+                            setModalState(() {
+                              isSaving = false;
+                            });
+
+                            if (res['success'] == true) {
+                              Navigator.pop(context);
+                              _onRefresh();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(res['error'] ?? 'Error creating group'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
+                        : null,
+                    backgroundColor: selectedIds.isNotEmpty ? accentColor : (isDark ? const Color(0xFF1E2A3C) : Colors.grey[300]),
+                    foregroundColor: selectedIds.isNotEmpty ? Colors.white : (isDark ? Colors.white30 : Colors.black26),
+                    elevation: selectedIds.isNotEmpty ? 4 : 0,
+                    child: isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded, size: 24),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   String? _getEffectiveProfileImage(CallUser user) {
     if (user.profileImage != null && user.profileImage!.isNotEmpty) {
