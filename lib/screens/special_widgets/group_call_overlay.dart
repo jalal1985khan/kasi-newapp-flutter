@@ -429,7 +429,7 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
     _localAudioTrack = null;
     _room?.disconnect();
     _room = null;
-    Future.delayed(const Duration(seconds: showHangup ? 2 : 0), widget.onEnd);
+    Future.delayed(Duration(seconds: showHangup ? 2 : 0), widget.onEnd);
   }
 
   void _toggleMute() {
