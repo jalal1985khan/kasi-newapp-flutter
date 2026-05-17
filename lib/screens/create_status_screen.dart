@@ -231,7 +231,7 @@ class _CreateStatusScreenState extends State<CreateStatusScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: const BoxDecoration(
-                      color: Colors.black25,
+                      color: Colors.black26,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.close, color: Colors.white, size: 26),
@@ -253,7 +253,7 @@ class _CreateStatusScreenState extends State<CreateStatusScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           margin: const EdgeInsets.only(right: 10),
                           decoration: BoxDecoration(
-                            color: Colors.black25,
+                            color: Colors.black26,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Text('Aa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -270,7 +270,7 @@ class _CreateStatusScreenState extends State<CreateStatusScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: const BoxDecoration(
-                            color: Colors.black25,
+                            color: Colors.black26,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.palette, color: Colors.white, size: 24),
