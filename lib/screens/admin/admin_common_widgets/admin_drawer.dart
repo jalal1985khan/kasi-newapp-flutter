@@ -53,7 +53,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: waTeal,
                   backgroundImage: AuthService.getProfileImage(user) != null && AuthService.getProfileImage(user)!.isNotEmpty
-                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${DateTime.now().millisecondsSinceEpoch}")
+                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${user?['updatedAt'] ?? user?['updated_at'] ?? '1'}")
                       : null,
                   child: (AuthService.getProfileImage(user) == null || AuthService.getProfileImage(user)!.isEmpty)
                       ? Text(

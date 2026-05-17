@@ -464,7 +464,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   radius: 50,
                                   backgroundColor: const Color(0xFF00A884).withOpacity(0.1),
                                   backgroundImage: AuthService.getProfileImage(user) != null && AuthService.getProfileImage(user)!.isNotEmpty
-                                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${DateTime.now().millisecondsSinceEpoch}")
+                                      ? NetworkImage("${AuthService().getFullUrl(AuthService.getProfileImage(user))}?t=${user?['updatedAt'] ?? user?['updated_at'] ?? '1'}")
                                       : null,
                                   child: _isUploadingImage
                                       ? const CircularProgressIndicator(color: Colors.white)
