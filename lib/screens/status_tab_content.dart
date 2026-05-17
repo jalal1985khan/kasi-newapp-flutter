@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'status_view_widget.dart';
+import 'create_status_screen.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../services/auth_service.dart';
@@ -50,103 +51,16 @@ class StatusTabContentState extends State<StatusTabContent> {
     }
   }
 
-  Future<void> pickAndUploadStatus() async {
-    // Show options for Image, Video or Text
-    final type = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text('Image'),
-              onTap: () => Navigator.pop(context, 'image'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.videocam),
-              title: const Text('Video'),
-              onTap: () => Navigator.pop(context, 'video'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.text_fields),
-              title: const Text('Text'),
-              onTap: () => Navigator.pop(context, 'text'),
-            ),
-          ],
-        ),
+  Future<void> pickAndUploadStatus({String initialMode = 'TEXT'}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateStatusScreen(initialMode: initialMode),
       ),
     );
-
-    if (type == null) return;
-
-    if (type == 'text') {
-      _showTextStatusDialog();
-    } else {
-      _pickMedia(type);
-    }
-  }
-
-  Future<void> _pickMedia(String type) async {
-    final ImagePicker picker = ImagePicker();
-    XFile? file;
-    
-    if (type == 'image') {
-      file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-    } else {
-      file = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 30));
-    }
-    
-    if (file == null) return;
-
-    if (mounted) setState(() => _isLoading = true);
-    final uploadResult = await _authService.uploadProfileImage(file.path);
-    
-    if (uploadResult['success'] == true) {
-      final String mediaUrl = uploadResult['url'];
-      await _statusService.createStatus(
-        content: mediaUrl,
-        type: type,
-        caption: '',
-      );
+    if (result == true) {
       _loadData();
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${uploadResult['message']}')));
-      }
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showTextStatusDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Text Status'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: const InputDecoration(hintText: 'Type something...'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isEmpty) return;
-              Navigator.pop(context);
-              setState(() => _isLoading = true);
-              await _statusService.createStatus(
-                content: controller.text,
-                type: 'text',
-              );
-              _loadData();
-            },
-            child: const Text('Post'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _viewStory(UserStatuses userStatus) {

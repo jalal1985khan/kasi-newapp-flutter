@@ -724,25 +724,44 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
           },
         ),
       ],
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (_tabController.index == 0) {
-            _showMessageDialog(context);
-          } else if (_tabController.index == 1) {
-            _statusTabKey.currentState?.pickAndUploadStatus();
-          } else {
-            _showCallDialog(context);
-          }
-        },
-        backgroundColor: waTeal,
-        elevation: 4,
-        child: Icon(
-          _tabController.index == 0 
-              ? Icons.message 
-              : (_tabController.index == 1 ? Icons.camera_alt : Icons.add_call),
-          color: Colors.white,
-          size: 28,
-        ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (_tabController.index == 1) ...[
+            FloatingActionButton(
+              heroTag: 'fab_text_status',
+              onPressed: () {
+                _statusTabKey.currentState?.pickAndUploadStatus(initialMode: 'TEXT');
+              },
+              backgroundColor: const Color(0xFF1F2C34),
+              mini: true,
+              elevation: 4,
+              child: const Icon(Icons.edit, color: Colors.white, size: 22),
+            ),
+            const SizedBox(height: 12),
+          ],
+          FloatingActionButton(
+            heroTag: 'fab_main',
+            onPressed: () {
+              if (_tabController.index == 0) {
+                _showMessageDialog(context);
+              } else if (_tabController.index == 1) {
+                _statusTabKey.currentState?.pickAndUploadStatus(initialMode: 'PHOTO');
+              } else {
+                _showCallDialog(context);
+              }
+            },
+            backgroundColor: waTeal,
+            elevation: 4,
+            child: Icon(
+              _tabController.index == 0
+                  ? Icons.message
+                  : (_tabController.index == 1 ? Icons.camera_alt : Icons.add_call),
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ],
       ),
       body: TabBarView(
         controller: _tabController,
