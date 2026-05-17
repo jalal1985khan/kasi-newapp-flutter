@@ -22,6 +22,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import '../user/media_gallery_screen.dart';
+import '../special_widgets/group_call_overlay.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupId;
@@ -220,6 +221,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
     socket.on('group:deleted', _deletedHandler);
     socket.on('group:message:deleted', _messageDeletedHandler);
     socket.on('group:message:edited', _messageEditedHandler);
+
+    // Group call: if someone else starts a call while we are IN this chat
+    socket.on('group_call:incoming', (data) {
+      if (data['groupId'] == widget.groupId && mounted && !GroupCallOverlayManager.isActive) {
+        final overlay = Overlay.of(context);
+        IncomingGroupCallOverlayManager.showGlobal(
+          overlay,
+          callId:      data['callId'] ?? '',
+          groupId:     data['groupId'] ?? '',
+          groupName:   data['groupName'] ?? widget.name,
+          hostName:    data['hostName'] ?? 'Host',
+          hostImage:   data['hostImage'] ?? '',
+          memberCount: data['memberCount'] ?? 2,
+        );
+      }
+    });
   }
 
   @override
@@ -231,6 +248,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     socket.off('group:deleted', _deletedHandler);
     socket.off('group:message:deleted', _messageDeletedHandler);
     socket.off('group:message:edited', _messageEditedHandler);
+    socket.off('group_call:incoming');
     
     _typingTimer?.cancel();
     _recordTimer?.cancel();
@@ -685,6 +703,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   List<Widget> _buildExtraActions() {
     return [
+      // Group voice call button
+      IconButton(
+        icon: const Icon(Icons.call, color: Colors.white),
+        tooltip: 'Group Voice Call',
+        onPressed: () async {
+          if (GroupCallOverlayManager.isActive) return;
+          // Fetch group members for the call
+          final groupRes = await _groupChatService.getGroupDetails(widget.groupId);
+          final rawMembers = (groupRes['group']?['members'] ?? []) as List;
+          final members = rawMembers.map<Map<String, dynamic>>((m) {
+            final uid = m['userId'] is Map ? m['userId']['_id'] : m['userId'];
+            final name = m['userId'] is Map ? m['userId']['name'] : (m['name'] ?? 'Member');
+            return {'userId': uid.toString(), 'name': name.toString()};
+          }).toList();
+          if (!mounted) return;
+          GroupCallOverlayManager.showAsHost(
+            context,
+            groupId:   widget.groupId,
+            groupName: _groupName ?? widget.name,
+            members:   members,
+          );
+        },
+      ),
       IconButton(
         icon: const Icon(Icons.info_outline),
         onPressed: () async {

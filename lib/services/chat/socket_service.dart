@@ -152,6 +152,10 @@ class SocketService with WidgetsBindingObserver {
       if (_onIncomingCall != null) _onIncomingCall!(data);
     });
 
+    socket!.on('group_call:incoming', (data) {
+      if (_onIncomingGroupCall != null) _onIncomingGroupCall!(data);
+    });
+
     socket!.on('company:logout', (data) {
       if (_onForceLogout != null) {
         String msg = data['message'] ?? 'Your session has ended.';
@@ -165,6 +169,11 @@ class SocketService with WidgetsBindingObserver {
   Function(dynamic)? _onIncomingCall;
   void setIncomingCallHandler(Function(dynamic) handler) {
     _onIncomingCall = handler;
+  }
+
+  Function(dynamic)? _onIncomingGroupCall;
+  void setIncomingGroupCallHandler(Function(dynamic) handler) {
+    _onIncomingGroupCall = handler;
   }
 
   Function(String)? _onForceLogout;

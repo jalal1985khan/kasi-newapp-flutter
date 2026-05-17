@@ -40,4 +40,9 @@ class ApiConstants {
   static const String callHistory = 'api/flutter/call/history';
   static const String callIce = 'api/flutter/call/ice';
   static const String callIncoming = 'api/flutter/call/incoming';
+
+  // Group call endpoints
+  static const String groupCallToken = 'api/group-call/token';
+  static const String groupCallJoin  = 'api/group-call/join';
+  static const String groupCallEnd   = 'api/group-call/end';
 }

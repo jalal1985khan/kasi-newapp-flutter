@@ -6,6 +6,7 @@ import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
 import 'screens/general_pages/splash_screen.dart';
 import 'screens/special_widgets/call_overlay.dart';
+import 'screens/special_widgets/group_call_overlay.dart';
 import 'services/chat/socket_service.dart';
 import 'services/auth_service.dart';
 import 'services/fcm_service.dart';
@@ -70,6 +71,22 @@ void main() async {
       callerImage: data['callerImage'] ?? '',
       callId:     data['callId']    ?? '',
       roomName:   data['roomName']  ?? '',
+    );
+  });
+
+  // Wire incoming GROUP call socket events globally
+  SocketService().setIncomingGroupCallHandler((data) {
+    final overlay = navigatorKey.currentState?.overlay;
+    if (overlay == null) return;
+    if (GroupCallOverlayManager.isActive) return;
+    IncomingGroupCallOverlayManager.showGlobal(
+      overlay,
+      callId:      data['callId']      ?? '',
+      groupId:     data['groupId']     ?? '',
+      groupName:   data['groupName']   ?? 'Group Call',
+      hostName:    data['hostName']    ?? 'Host',
+      hostImage:   data['hostImage']   ?? '',
+      memberCount: data['memberCount'] ?? 2,
     );
   });
 
