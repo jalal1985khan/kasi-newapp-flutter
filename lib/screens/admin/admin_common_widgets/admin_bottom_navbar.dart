@@ -6,6 +6,7 @@ import '../bulk_user_add_screen.dart';
 import '../website_resourses_screen.dart';
 import '../employee_list_screen.dart';
 import '../chat_call_screen.dart';
+import '../../../services/chat/socket_service.dart';
 
 class AdminBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -67,6 +68,8 @@ class AdminBottomNavBar extends StatelessWidget {
               );
               break;
             case 3:
+              print('📡 [Navigation] Admin tapped Chat tab. Waking socket...');
+              SocketService().connect(force: true);
               Navigator.pushReplacement(
                 context,
                 PageRouteBuilder(

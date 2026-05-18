@@ -6,6 +6,7 @@ import '../user_profile_screen.dart';
 import '../user_chat_call_screen.dart';
 import '../../../utils/premium_widgets.dart';
 import 'package:flutter/services.dart';
+import '../../../services/chat/socket_service.dart';
 
 class UserBottomNavigationBar extends StatelessWidget {
   final int currentIndex;
@@ -38,6 +39,11 @@ class UserBottomNavigationBar extends StatelessWidget {
         onTap: (index) {
           if (index == currentIndex) return;
           HapticFeedback.lightImpact();
+
+          if (index == 1) {
+            print('📡 [Navigation] User tapped Chat tab. Waking socket...');
+            SocketService().connect(force: true);
+          }
 
           final List<Widget> pages = [
             const UserDashboardScreen(),

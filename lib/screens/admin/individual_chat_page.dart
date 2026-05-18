@@ -143,11 +143,15 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _messageReceiveHandler = (data) => _handleIncomingMessage(data);
     _messageSentHandler = (data) => _handleIncomingMessage(data);
     _typingStartHandler = (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = true);
       }
     };
     _typingStopHandler = (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = false);
       }

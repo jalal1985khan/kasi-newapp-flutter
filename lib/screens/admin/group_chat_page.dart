@@ -165,6 +165,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void _initHandlers() {
     _messageReceiveHandler = (data) => _handleIncomingMessage(data);
     _typingStartHandler = (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['groupId'] == widget.groupId && mounted) {
         final name = data['senderName'] ?? 'Someone';
         if (!_typingUsers.contains(name)) {
@@ -173,6 +175,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     };
     _typingStopHandler = (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['groupId'] == widget.groupId && mounted) {
         final name = data['senderName'] ?? 'Someone';
         setState(() => _typingUsers.remove(name));

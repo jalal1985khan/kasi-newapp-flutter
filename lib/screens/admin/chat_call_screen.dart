@@ -192,6 +192,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   }
 
   Future<void> _onRefresh() async {
+    _socketService.connect(force: true);
     await _loadData();
   }
 

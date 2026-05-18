@@ -153,6 +153,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   }
 
   Future<void> _onRefresh() async {
+    _socketService.connect(force: true);
     await _loadData();
   }
 

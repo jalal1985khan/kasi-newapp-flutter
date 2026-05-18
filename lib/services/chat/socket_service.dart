@@ -19,7 +19,17 @@ class SocketService with WidgetsBindingObserver {
   bool _isRefreshing = false;
   Completer<IO.Socket?>? _connectCompleter;
 
-  Future<IO.Socket?> connect() async {
+  Future<IO.Socket?> connect({bool force = false}) async {
+    if (force) {
+      print('🔄 [Socket] Force connection requested. Rebuilding socket...');
+      if (socket != null) {
+        socket!.disconnect();
+        socket!.dispose();
+        socket = null;
+      }
+      _connectCompleter = null;
+    }
+
     if (_connectCompleter != null) return _connectCompleter!.future;
     
     if (socket != null && socket!.connected) return socket;
@@ -226,10 +236,17 @@ class SocketService with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     print('📱 [Socket] App Lifecycle State Changed: $state');
     if (state == AppLifecycleState.resumed) {
-      print('📱 [Socket] App resumed: checking/forcing reconnection...');
-      if (socket == null || !socket!.connected) {
-        connect();
+      print('📱 [Socket] App resumed: forcing clean reconnection...');
+      // Clean up zombie socket and reconnect immediately
+      if (socket != null) {
+        socket!.disconnect();
+        socket = null;
       }
+      connect();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      print('📱 [Socket] App backgrounded: disconnecting cleanly...');
+      // Cleanly disconnect socket so the server immediately knows the user is offline
+      disconnect();
     }
   }
 }

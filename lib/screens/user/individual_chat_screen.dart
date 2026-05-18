@@ -142,12 +142,16 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _socketService.on('message:sent', (data) => _handleIncomingMessage(data));
 
     _socketService.on('typing:start', (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = true);
       }
     });
 
     _socketService.on('typing:stop', (data) {
+      final senderId = data['senderId'];
+      if (senderId != null && senderId == _currentUserId) return;
       if (data['conversationId'] == _activeConversationId && mounted) {
         setState(() => _isTyping = false);
       }
