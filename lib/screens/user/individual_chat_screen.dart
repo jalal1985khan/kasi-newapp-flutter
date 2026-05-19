@@ -1642,7 +1642,7 @@ class _ChatBubble extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: isMe ? Colors.white : Colors.slate.shade900,
+                              color: isMe ? Colors.white : Colors.blueGrey.shade900,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -1669,7 +1669,7 @@ class _ChatBubble extends StatelessWidget {
                                 'Tap to preview',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: isMe ? Colors.white.withOpacity(0.6) : Colors.slate.shade400,
+                                  color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade400,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -1680,7 +1680,7 @@ class _ChatBubble extends StatelessWidget {
                     ),
                     Icon(
                       Icons.remove_red_eye_outlined,
-                      color: isMe ? Colors.white.withOpacity(0.5) : Colors.slate.shade400,
+                      color: isMe ? Colors.white.withOpacity(0.5) : Colors.blueGrey.shade400,
                       size: 18,
                     ),
                   ],
