@@ -1392,83 +1392,190 @@ class _GroupChatBubble extends StatelessWidget {
       case 'video':
         IconData fileIcon = Icons.insert_drive_file;
         Color iconColor = Colors.blue;
+        Color cardBg = Colors.grey.shade50;
+        Color cardBorder = Colors.grey.shade200;
+        Color badgeBg = Colors.grey.shade100;
+        Color badgeText = Colors.grey.shade700;
+        String ext = 'FILE';
+        bool isVideo = false;
 
         if (message.fileName != null) {
-          final ext = message.fileName!.split('.').last.toLowerCase();
+          ext = message.fileName!.split('.').last.toLowerCase();
           if (ext == 'pdf') {
             fileIcon = Icons.picture_as_pdf;
-            iconColor = Colors.red;
+            iconColor = const Color(0xFFE53935);
+            cardBg = const Color(0xFFFFF1F1);
+            cardBorder = const Color(0xFFFFD5D5);
+            badgeBg = const Color(0xFFFFE0E0);
+            badgeText = const Color(0xFFC62828);
           } else if (['xls', 'xlsx', 'csv'].contains(ext)) {
             fileIcon = Icons.table_chart;
-            iconColor = Colors.green;
-          } else if (['doc', 'docx', 'txt'].contains(ext)) {
+            iconColor = const Color(0xFF2E7D32);
+            cardBg = const Color(0xFFE8F5E9);
+            cardBorder = const Color(0xFFC8E6C9);
+            badgeBg = const Color(0xFFC8E6C9);
+            badgeText = const Color(0xFF1B5E20);
+          } else if (['doc', 'docx'].contains(ext)) {
             fileIcon = Icons.description;
-            iconColor = Colors.blue;
-          } else if (['mp4', 'mov', 'avi'].contains(ext) ||
-              message.type == 'video') {
+            iconColor = const Color(0xFF1565C0);
+            cardBg = const Color(0xFFE3F2FD);
+            cardBorder = const Color(0xFFBBDEFB);
+            badgeBg = const Color(0xFFBBDEFB);
+            badgeText = const Color(0xFF0D47A1);
+          } else if (['mp4', 'mov', 'avi'].contains(ext) || message.type == 'video') {
             fileIcon = Icons.video_library;
-            iconColor = Colors.orange;
+            iconColor = const Color(0xFFE65100);
+            cardBg = const Color(0xFFFFF3E0);
+            cardBorder = const Color(0xFFFFE0B2);
+            badgeBg = const Color(0xFFFFE0B2);
+            badgeText = const Color(0xFFE65100);
+            isVideo = true;
+          } else {
+            fileIcon = Icons.insert_drive_file;
+            iconColor = const Color(0xFF3F51B5);
+            cardBg = const Color(0xFFE8EAF6);
+            cardBorder = const Color(0xFFC5CAE9);
+            badgeBg = const Color(0xFFC5CAE9);
+            badgeText = const Color(0xFF1A237E);
           }
+        } else if (message.type == 'video') {
+          fileIcon = Icons.video_library;
+          iconColor = const Color(0xFFE65100);
+          cardBg = const Color(0xFFFFF3E0);
+          cardBorder = const Color(0xFFFFE0B2);
+          badgeBg = const Color(0xFFFFE0B2);
+          badgeText = const Color(0xFFE65100);
+          isVideo = true;
+          ext = 'VIDEO';
         }
 
-        contentWidget = SizedBox(
+        // For "me" messages, use a unified transparent overlay card style to fit the dark blue theme perfectly!
+        if (isMe) {
+          cardBg = Colors.white.withOpacity(0.08);
+          cardBorder = Colors.white.withOpacity(0.12);
+          badgeBg = Colors.white.withOpacity(0.16);
+          badgeText = Colors.white;
+          iconColor = Colors.white;
+        }
+
+        contentWidget = Container(
           width: standardWidth,
-          child: GestureDetector(
-            onTap: () {
-              final isVideo = (message.fileName != null && 
-                  (['mp4', 'mov', 'avi'].contains(message.fileName!.split('.').last.toLowerCase()))) || 
-                  message.type == 'video';
+          decoration: BoxDecoration(
+            color: cardBg,
+            border: Border.all(color: cardBorder, width: 1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                final isVid = isVideo || (message.fileName != null && 
+                    (['mp4', 'mov', 'avi'].contains(message.fileName!.split('.').last.toLowerCase()))) || 
+                    message.type == 'video';
+                    
+                if (isVid) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MediaGalleryScreen(
+                        url: message.content,
+                        type: 'video',
+                        fileName: message.fileName,
+                        senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                        userRole: userRole,
+                      ),
+                    ),
+                  );
+                } else {
+                  final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
+                  String type = 'document';
+                  if (extStr == 'pdf') type = 'pdf';
                   
-              if (isVideo) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MediaGalleryScreen(
-                      url: message.content,
-                      type: 'video',
-                      fileName: message.fileName,
-                      senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
-                      userRole: userRole,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MediaGalleryScreen(
+                        url: message.content,
+                        type: type,
+                        fileName: message.fileName,
+                        senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                        userRole: userRole,
+                      ),
                     ),
-                  ),
-                );
-              } else {
-                final String ext = message.fileName?.split('.').last.toLowerCase() ?? '';
-                String type = 'document';
-                if (ext == 'pdf') type = 'pdf';
-                
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MediaGalleryScreen(
-                      url: message.content,
-                      type: type,
-                      fileName: message.fileName,
-                      senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
-                      userRole: userRole,
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isMe ? Colors.white.withOpacity(0.15) : iconColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(fileIcon, color: iconColor, size: 22),
                     ),
-                  ),
-                );
-              }
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(fileIcon, color: iconColor, size: 28),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    message.fileName ?? 'Attachment',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      decoration: TextDecoration.underline,
-                      color: iconColor,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            message.fileName ?? (isVideo ? 'Video file' : 'Document'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isMe ? Colors.white : Colors.slate.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: badgeBg,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  ext.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: badgeText,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Tap to preview',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isMe ? Colors.white.withOpacity(0.6) : Colors.slate.shade400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    Icon(
+                      Icons.remove_red_eye_outlined,
+                      color: isMe ? Colors.white.withOpacity(0.5) : Colors.slate.shade400,
+                      size: 18,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
