@@ -292,7 +292,7 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
           enableDominantSpeaker: true,
         ),
       );
-      await TwilioProgrammableVideo.setSpeakerphoneOn(true);
+      await TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
 
       // Existing participants
       for (var p in _room?.remoteParticipants ?? []) {
@@ -430,6 +430,13 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
     _room?.disconnect();
     _room = null;
     Future.delayed(Duration(seconds: showHangup ? 2 : 0), widget.onEnd);
+  }
+
+  bool _isSpeakerOn = true; // Default to speakerphone
+
+  void _toggleSpeaker() {
+    setState(() => _isSpeakerOn = !_isSpeakerOn);
+    TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
   }
 
   void _toggleMute() {
@@ -622,6 +629,12 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
                       onTap: _toggleMute,
                     ),
                     _controlBtn(
+                      icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_off,
+                      label: 'Speaker',
+                      color: _isSpeakerOn ? Colors.greenAccent.withOpacity(0.3) : Colors.white.withOpacity(0.15),
+                      onTap: _toggleSpeaker,
+                    ),
+                    _controlBtn(
                       icon: Icons.keyboard_arrow_down,
                       label: 'Minimize',
                       color: Colors.white.withOpacity(0.15),
@@ -656,46 +669,36 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
       left: _minimizedPos.dx,
       top: _minimizedPos.dy,
       child: GestureDetector(
-        onPanUpdate: (d) => setState(() => _minimizedPos += d.delta),
+        onPanUpdate: (details) {
+          setState(() {
+            _minimizedPos = Offset(
+              _minimizedPos.dx + details.delta.dx,
+              _minimizedPos.dy + details.delta.dy,
+            );
+          });
+        },
+        onTap: () => setState(() => _isMinimized = false),
         child: Material(
           elevation: 12,
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF0D1B2A),
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF00A884), // WhatsApp Green
           child: Container(
-            width: 130,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: InkWell(
-                    onTap: () => setState(() => _isMinimized = false),
-                    child: const Icon(Icons.open_in_full, color: Colors.white70, size: 16),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 48, height: 48,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
-                  ),
-                  child: const Icon(Icons.groups, color: Colors.white, size: 24),
-                ),
-                const SizedBox(height: 6),
-                Text(widget.groupName, style: const TextStyle(color: Colors.white, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const Icon(Icons.groups, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
                 Text(
                   _isActive ? _timerLabel : _status,
-                  style: TextStyle(color: _isActive ? Colors.greenAccent : Colors.white60, fontSize: 11),
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: _leaveCall,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    child: const Icon(Icons.call_end, color: Colors.white, size: 18),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ],

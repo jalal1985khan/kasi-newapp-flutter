@@ -55,9 +55,9 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   bool _isMinimized = false;
-  bool _isSpeakerOn = false;
+  Offset _minimizedPos = const Offset(20, 100);
+  bool _isSpeakerOn = true; // Default to speakerphone
   bool _isMuted = false;
-  Offset _minimizedPosition = const Offset(20, 100);
 
   String _status = 'Calling...';
   String? _callId;
@@ -130,8 +130,8 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
         ),
       );
 
-      await TwilioProgrammableVideo.setSpeakerphoneOn(true);
-      print('Twilio (Caller): Connected and speakerphone enabled');
+      await TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
+      print('Twilio (Caller): Connected and speakerphone enabled: $_isSpeakerOn');
       print('Connected to room: ${_room?.sid}');
 
       // Listen for remote audio
@@ -150,7 +150,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
       });
 
       // Set initial speaker state
-      webrtc.Helper.setSpeakerphoneOn(_isSpeakerOn);
+      TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
 
     } catch (e) {
       debugPrint('Twilio error: $e');
@@ -237,11 +237,6 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
           _status = 'Connected';
           _isActive = true;
         });
-        // Start WebRTC as the caller — we create the offer
-        // Start Twilio call as the caller
-        if (_token != null && _roomName != null) {
-          _startTwilioCall(token: _token!, roomName: _roomName!);
-        }
       }
     });
 
@@ -307,6 +302,12 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
 
       _remoteUserId = widget.receiverId; // store for WebRTC signaling
       _token = response['token'];
+
+      // Connect to Twilio immediately so there is no delay when receiver answers
+      if (_token != null && _roomName != null) {
+        _startTwilioCall(token: _token!, roomName: _roomName!);
+      }
+
       _socketService.emit('call:initiate', {
         'callId': _callId,
         'receiverId': widget.receiverId,
@@ -467,69 +468,44 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
 
   void _toggleSpeaker() {
     setState(() => _isSpeakerOn = !_isSpeakerOn);
-    webrtc.Helper.setSpeakerphoneOn(_isSpeakerOn);
+    TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
   }
 
   Widget _buildMinimized(BuildContext context) {
     return Positioned(
-      left: _minimizedPosition.dx,
-      top: _minimizedPosition.dy,
+      left: _minimizedPos.dx,
+      top: _minimizedPos.dy,
       child: GestureDetector(
         onPanUpdate: (details) {
-          setState(() => _minimizedPosition += details.delta);
+          setState(() {
+            _minimizedPos = Offset(
+              _minimizedPos.dx + details.delta.dx,
+              _minimizedPos.dy + details.delta.dy,
+            );
+          });
         },
+        onTap: () => setState(() => _isMinimized = false),
         child: Material(
           elevation: 12,
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF075E54),
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF00A884), // WhatsApp Green
           child: Container(
-            width: 130,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: InkWell(
-                    onTap: () => setState(() => _isMinimized = false),
-                    child: const Icon(Icons.open_in_full, color: Colors.white70, size: 16),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white24,
-                  backgroundImage: (widget.avatar.isNotEmpty && widget.avatar != 'null' && AuthService().getFullUrl(widget.avatar) != null)
-                      ? NetworkImage(AuthService().getFullUrl(widget.avatar)!)
-                      : null,
-                  child: (widget.avatar.isEmpty || widget.avatar == 'null' || AuthService().getFullUrl(widget.avatar) == null)
-                      ? Text(
-                          widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                const Icon(Icons.call, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
                 Text(
                   _isActive ? _timerLabel : _status,
-                  style: TextStyle(
-                    color: _isActive ? Colors.greenAccent : Colors.white60,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: _endCall,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    child: const Icon(Icons.call_end, color: Colors.white, size: 18),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ],
@@ -661,7 +637,9 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   late Animation<double> _pulseAnim;
 
   bool _accepted = false;
-  bool _isSpeakerOn = false;
+  bool _isSpeakerOn = true; // Default to speakerphone
+  bool _isMinimized = false;
+  Offset _minimizedPos = const Offset(20, 100);
   Timer? _callTimer;
   int _elapsedSeconds = 0;
 
@@ -706,8 +684,8 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
         ),
       );
       
-      await TwilioProgrammableVideo.setSpeakerphoneOn(true);
-      debugPrint('Twilio (Receiver): Connected and speakerphone enabled');
+      await TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
+      debugPrint('Twilio (Receiver): Connected and speakerphone enabled: $_isSpeakerOn');
 
       print('Receiver connected to room: ${_room?.sid}');
 
@@ -727,7 +705,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
       });
 
       // Set initial speaker state
-      webrtc.Helper.setSpeakerphoneOn(_isSpeakerOn);
+      TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
 
     } catch (e) {
       debugPrint('Receiver Twilio error: $e');
@@ -856,6 +834,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
   @override
   Widget build(BuildContext context) {
+    if (_isMinimized) return _buildMinimized(context);
     return Material(
       color: const Color(0xFF1A1A2E).withOpacity(0.97),
       child: Center(
@@ -938,6 +917,12 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                         color: _isSpeakerOn ? Colors.greenAccent.withOpacity(0.3) : Colors.white24,
                         onTap: _toggleSpeaker,
                       ),
+                      _callActionItem(
+                        icon: Icons.keyboard_arrow_down,
+                        label: 'Minimize',
+                        color: Colors.white24,
+                        onTap: () => setState(() => _isMinimized = true),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 50),
@@ -964,7 +949,52 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
   void _toggleSpeaker() {
     setState(() => _isSpeakerOn = !_isSpeakerOn);
-    webrtc.Helper.setSpeakerphoneOn(_isSpeakerOn);
+    TwilioProgrammableVideo.setSpeakerphoneOn(_isSpeakerOn);
+  }
+
+  Widget _buildMinimized(BuildContext context) {
+    return Positioned(
+      left: _minimizedPos.dx,
+      top: _minimizedPos.dy,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            _minimizedPos = Offset(
+              _minimizedPos.dx + details.delta.dx,
+              _minimizedPos.dy + details.delta.dy,
+            );
+          });
+        },
+        onTap: () => setState(() => _isMinimized = false),
+        child: Material(
+          elevation: 12,
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF00A884), // WhatsApp Green
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.call, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  _accepted ? _timerLabel : 'Incoming...',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _callIconBtn({required IconData icon, required Color color, required VoidCallback onTap}) {
