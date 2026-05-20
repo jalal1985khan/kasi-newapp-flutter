@@ -16,6 +16,7 @@ import 'package:path/path.dart' as p;
 import 'attachment_preview_screen.dart';
 import 'media_gallery_screen.dart';
 import 'common_widgets/user_layout.dart';
+import '../special_widgets/premium_recording_indicator.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/chat/chat_service.dart';
 import '../../services/auth_service.dart';
@@ -839,38 +840,54 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
               ? _buildVoicePreview(isDark, waTeal, textColor)
               : Row(
                   children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(color: inputBg, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]),
-                        child: _isRecording ? _buildRecordingUI(textColor) : _buildTextInput(textColor),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SoftTouchWrapper(
-                      onTap: () {
-                        if (_messageController.text.isNotEmpty) {
-                          _sendMessage();
-                        } else if (!_isRecording) {
-                          _startRecording();
-                        } else {
-                          _stopRecording();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    _isRecording
+                        ? Expanded(
+                            child: PremiumRecordingIndicator(
+                              duration: Duration(seconds: _recordDuration.toInt()),
+                              onCancel: () {
+                                _recordTimer?.cancel();
+                                _audioRecorder.stop();
+                                setState(() => _isRecording = false);
+                              },
+                              onStop: _stopRecording,
+                            ),
+                          )
+                        : Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: inputBg,
+                                borderRadius: BorderRadius.circular(25),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: _buildTextInput(textColor),
+                            ),
+                          ),
+                    if (!_isRecording) ...[
+                      const SizedBox(width: 8),
+                      SoftTouchWrapper(
+                        onTap: () {
+                          if (_messageController.text.isNotEmpty) {
+                            _sendMessage();
+                          } else {
+                            _startRecording();
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
                           child: Icon(
-                            _messageController.text.isNotEmpty ? Icons.send : (_isRecording ? Icons.stop : Icons.mic),
-                            key: ValueKey(_messageController.text.isNotEmpty ? 'send' : (_isRecording ? 'stop' : 'mic')),
+                            _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
                             color: Colors.white,
                             size: 24,
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
         ],

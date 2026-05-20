@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:twilio_programmable_video/twilio_programmable_video.dart';
@@ -53,6 +54,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
   final SocketService _socketService = SocketService();
   final AuthService _authService = AuthService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isSoundStopped = false;
 
   bool _isMinimized = false;
   Offset _minimizedPos = const Offset(20, 100);
@@ -175,24 +177,37 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
 
   // ── Sound helpers ─────────────────────────────────────────────────────────
   Future<void> _playDialingTone() async {
+    _isSoundStopped = false;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      await _audioPlayer.play(UrlSource(
-        'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
-      ));
+      if (!_isSoundStopped) {
+        await _audioPlayer.play(UrlSource(
+          'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
+        ));
+        if (_isSoundStopped) {
+          await _audioPlayer.stop();
+        }
+      }
     } catch (_) {}
   }
 
   Future<void> _playRingingTone() async {
+    _isSoundStopped = false;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      await _audioPlayer.play(UrlSource(
-        'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
-      ));
+      if (!_isSoundStopped) {
+        await _audioPlayer.play(UrlSource(
+          'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
+        ));
+        if (_isSoundStopped) {
+          await _audioPlayer.stop();
+        }
+      }
     } catch (_) {}
   }
 
   Future<void> _playHangupSound() async {
+    _isSoundStopped = true;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.release);
       await _audioPlayer.play(UrlSource(
@@ -202,6 +217,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
   }
 
   Future<void> _stopSounds() async {
+    _isSoundStopped = true;
     try {
       await _audioPlayer.stop();
     } catch (_) {}
@@ -587,12 +603,19 @@ class IncomingCallOverlayManager {
       ),
     );
     
-    // Ensure insertion happens after current frame to avoid "setState() or markNeedsBuild() called during build" crashes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    void insertOverlay() {
       if (_entry != null) {
         overlay.insert(_entry!);
       }
-    });
+    }
+
+    // Ensure insertion happens without delay if not currently in a layout/paint phase
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => insertOverlay());
+    } else {
+      insertOverlay();
+    }
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   static void hide() {
@@ -628,6 +651,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   final CallService _callService = CallService();
   final SocketService _socketService = SocketService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isSoundStopped = false;
   
   Room? _room;
   LocalAudioTrack? _localAudioTrack;
@@ -729,6 +753,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   }
 
   Future<void> _playRingtone() async {
+    _isSoundStopped = false;
     try {
       await FlutterRingtonePlayer().playRingtone(
         looping: true,
@@ -737,14 +762,20 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     } catch (_) {
       try {
         await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-        await _audioPlayer.play(UrlSource(
-          'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
-        ));
+        if (!_isSoundStopped) {
+          await _audioPlayer.play(UrlSource(
+            'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
+          ));
+          if (_isSoundStopped) {
+            await _audioPlayer.stop();
+          }
+        }
       } catch (_) {}
     }
   }
 
   Future<void> _playHangupSound() async {
+    _isSoundStopped = true;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.release);
       await _audioPlayer.play(UrlSource(
@@ -754,6 +785,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   }
 
   Future<void> _stopSounds() async {
+    _isSoundStopped = true;
     try {
       await FlutterRingtonePlayer().stop();
     } catch (_) {}

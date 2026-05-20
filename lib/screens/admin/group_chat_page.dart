@@ -11,6 +11,7 @@ import '../user/common_widgets/user_layout.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/chat/chat_service.dart';
 import '../../services/chat/group_chat_service.dart';
+import '../special_widgets/premium_recording_indicator.dart';
 import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
 import 'group_info_page.dart';
@@ -225,22 +226,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
     socket.on('group:deleted', _deletedHandler);
     socket.on('group:message:deleted', _messageDeletedHandler);
     socket.on('group:message:edited', _messageEditedHandler);
-
-    // Group call: if someone else starts a call while we are IN this chat
-    socket.on('group_call:incoming', (data) {
-      if (data['groupId'] == widget.groupId && mounted && !GroupCallOverlayManager.isActive) {
-        final overlay = Overlay.of(context);
-        IncomingGroupCallOverlayManager.showGlobal(
-          overlay,
-          callId:      data['callId'] ?? '',
-          groupId:     data['groupId'] ?? '',
-          groupName:   data['groupName'] ?? widget.name,
-          hostName:    data['hostName'] ?? 'Host',
-          hostImage:   data['hostImage'] ?? '',
-          memberCount: data['memberCount'] ?? 2,
-        );
-      }
-    });
   }
 
   @override
@@ -252,7 +237,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
     socket.off('group:deleted', _deletedHandler);
     socket.off('group:message:deleted', _messageDeletedHandler);
     socket.off('group:message:edited', _messageEditedHandler);
-    socket.off('group_call:incoming');
     
     _typingTimer?.cancel();
     _recordTimer?.cancel();
@@ -1010,45 +994,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
             )
           : Row(
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: inputBg,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
+                _isRecording
+                    ? Expanded(
+                        child: PremiumRecordingIndicator(
+                          duration: Duration(seconds: _recordDuration.toInt()),
+                          onCancel: () {
+                            _recordTimer?.cancel();
+                            _audioRecorder.stop();
+                            setState(() => _isRecording = false);
+                          },
+                          onStop: _stopRecording,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.attach_file, color: Color(0xFF8696A0)),
-                          onPressed: _pickFiles,
-                        ),
-                        Expanded(
-                          child: _isRecording
-                              ? Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.mic, color: Colors.red, size: 18),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Recording... ${_recordDuration.toInt()}s',
-                                        style: const TextStyle(
-                                          color: Colors.red,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : TextField(
+                      )
+                    : Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.attach_file, color: Color(0xFF8696A0)),
+                                onPressed: _pickFiles,
+                              ),
+                              Expanded(
+                                child: TextField(
                                   controller: _messageController,
                                   style: TextStyle(color: textColor),
                                   onChanged: (val) {
@@ -1075,34 +1054,31 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                                   ),
                                 ),
-                        ),
-                        if (_isRecording)
-                          IconButton(
-                            icon: const Icon(Icons.stop, color: Colors.red),
-                            onPressed: _stopRecording,
+                              ),
+                            ],
                           ),
-                      ],
+                        ),
+                      ),
+                if (!_isRecording) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      if (_messageController.text.isNotEmpty) {
+                        _sendMessage();
+                      } else if (!_isRecording) {
+                        _startRecording();
+                      }
+                    },
+                    child: CircleAvatar(
+                      backgroundColor: const Color(0xFF1A73E8),
+                      radius: 25,
+                      child: Icon(
+                        _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    if (_messageController.text.isNotEmpty) {
-                      _sendMessage();
-                    } else if (!_isRecording) {
-                      _startRecording();
-                    }
-                  },
-                  child: CircleAvatar(
-                    backgroundColor: const Color(0xFF1A73E8),
-                    radius: 25,
-                    child: Icon(
-                      _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                ],
               ],
             ),
     );

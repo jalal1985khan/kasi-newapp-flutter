@@ -14,6 +14,7 @@ import 'package:dio/dio.dart' as dio_lib;
 import 'package:image_picker/image_picker.dart';
 import 'chat_profile_screen.dart';
 import '../special_widgets/call_overlay.dart';
+import '../special_widgets/premium_recording_indicator.dart';
 import 'admin_common_widgets/admin_layout.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/chat/chat_service.dart';
@@ -1197,50 +1198,32 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                 )
           : Row(
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: inputBg,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
+                _isRecording
+                    ? Expanded(
+                        child: PremiumRecordingIndicator(
+                          duration: Duration(seconds: _recordDuration.toInt()),
+                          onCancel: () {
+                            _recordTimer?.cancel();
+                            _audioRecorder.stop();
+                            setState(() => _isRecording = false);
+                          },
+                          onStop: _stopRecording,
                         ),
-                      ],
-                    ),
-                    child: _isRecording
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Row(
-                              children: [
-                                _BlinkingMicIcon(),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '${_recordDuration.toInt()}s',
-                                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _WaveformWidget(color: Colors.redAccent.withOpacity(0.6), count: 30),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                                  onPressed: () {
-                                    _recordTimer?.cancel();
-                                    _audioRecorder.stop();
-                                    setState(() => _isRecording = false);
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 32),
-                                  onPressed: _stopRecording,
-                                ),
-                              ],
-                            ),
-                          )
-                        : Row(
+                      )
+                    : Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
                             children: [
                               const SizedBox(width: 8),
                               IconButton(
@@ -1287,26 +1270,29 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                               ),
                             ],
                           ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    if (_messageController.text.isNotEmpty) {
-                      _sendMessage();
-                    } else if (!_isRecording) {
-                      _startRecording();
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
-                    child: Icon(
-                      _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
-                      color: Colors.white,
-                      size: 28,
+                        ),
+                      ),
+                if (!_isRecording) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      if (_messageController.text.isNotEmpty) {
+                        _sendMessage();
+                      } else if (!_isRecording) {
+                        _startRecording();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
+                      child: Icon(
+                        _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
         ],

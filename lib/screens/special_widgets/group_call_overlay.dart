@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:twilio_programmable_video/twilio_programmable_video.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -74,9 +75,20 @@ class IncomingGroupCallOverlayManager {
         onEnd: hide,
       ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_entry != null) overlay.insert(_entry!);
-    });
+
+    void insertOverlay() {
+      if (_entry != null) {
+        overlay.insert(_entry!);
+      }
+    }
+
+    // Ensure insertion happens without delay if not currently in a layout/paint phase
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => insertOverlay());
+    } else {
+      insertOverlay();
+    }
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   static void hide() {
@@ -124,6 +136,7 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
   final SocketService _socketService = SocketService();
   final AuthService _authService = AuthService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isSoundStopped = false;
 
   // Call state
   String _status = '';
@@ -190,28 +203,44 @@ class _GroupCallOverlayState extends State<GroupCallOverlay>
 
   // ── Sound ──────────────────────────────────────────────────────────────────
   Future<void> _playDialingTone() async {
+    _isSoundStopped = false;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      await _audioPlayer.play(UrlSource(
-        'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
-      ));
+      if (!_isSoundStopped) {
+        await _audioPlayer.play(UrlSource(
+          'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
+        ));
+        if (_isSoundStopped) {
+          await _audioPlayer.stop();
+        }
+      }
     } catch (_) {}
   }
 
   Future<void> _playRingtone() async {
+    _isSoundStopped = false;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      await _audioPlayer.play(UrlSource(
-        'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
-      ));
+      if (!_isSoundStopped) {
+        await _audioPlayer.play(UrlSource(
+          'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/phone-ringing.mp3',
+        ));
+        if (_isSoundStopped) {
+          await _audioPlayer.stop();
+        }
+      }
     } catch (_) {}
   }
 
   Future<void> _stopSounds() async {
-    try { await _audioPlayer.stop(); } catch (_) {}
+    _isSoundStopped = true;
+    try {
+      await _audioPlayer.stop();
+    } catch (_) {}
   }
 
   Future<void> _playHangup() async {
+    _isSoundStopped = true;
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.release);
       await _audioPlayer.play(UrlSource(
