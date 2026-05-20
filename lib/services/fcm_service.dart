@@ -46,7 +46,11 @@ class FCMService {
 
       // 4. Handle Foreground messages (manually show notification)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        _showLocalNotification(message);
+        if (message.data['type'] == 'incoming_call') {
+          print('📡 [FCM] Incoming call foreground notification ignored (handled by socket overlay)');
+        } else {
+          _showLocalNotification(message);
+        }
         print('📡 [FCM] Foreground notification received. Waking socket...');
         SocketService().connect(force: true);
       });
