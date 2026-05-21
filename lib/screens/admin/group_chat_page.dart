@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -529,6 +530,45 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
+  Future<void> _handlePickedFilePaths(List<String> paths) async {
+    if (paths.isEmpty) return;
+    final total = paths.length;
+    int current = 0;
+
+    setState(() => _isLoading = true);
+    try {
+      for (final path in paths) {
+        current++;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Uploading to group: $current of $total...'),
+              duration: const Duration(milliseconds: 1500),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+
+        final uploadRes = await _chatService.uploadMedia(path);
+        if (uploadRes['success']) {
+          _sendMessage(
+            type: uploadRes['type'] ?? 'document',
+            content: uploadRes['url'],
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Group upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _pickFiles() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.any,
@@ -536,44 +576,149 @@ class _GroupChatPageState extends State<GroupChatPage> {
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      final total = result.paths.length;
-      int current = 0;
-
-      setState(() => _isLoading = true);
-      try {
-        for (final path in result.paths) {
-          if (path == null) continue;
-          current++;
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Uploading to group: $current of $total...'),
-                duration: const Duration(milliseconds: 1500),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-
-          final uploadRes = await _chatService.uploadMedia(path);
-          if (uploadRes['success']) {
-            _sendMessage(
-              type: uploadRes['type'] ?? 'document',
-              content: uploadRes['url'],
-            );
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Group upload failed: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
+      final List<String> paths = result.paths.whereType<String>().toList();
+      _handlePickedFilePaths(paths);
     }
   }
+
+  Future<void> _pickFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    if (image != null) {
+      _handlePickedFilePaths([image.path]);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile> images = await picker.pickMultiImage();
+    if (images.isNotEmpty) {
+      final List<String> paths = images.map((img) => img.path).toList();
+      _handlePickedFilePaths(paths);
+    }
+  }
+
+  void _showAttachmentSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final bool isDark = Theme.of(context).brightness == Brightness.dark;
+        final Color sheetBg = isDark ? const Color(0xFF1F2C34) : Colors.white;
+        final Color textColor = isDark ? Colors.white : Colors.black87;
+        
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Share Content',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildAttachmentOption(
+                      icon: Icons.camera_alt,
+                      color: Colors.orange,
+                      label: 'Camera',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFromCamera();
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.image,
+                      color: Colors.purple,
+                      label: 'Gallery',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFromGallery();
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.insert_drive_file,
+                      color: Colors.teal,
+                      label: 'Document',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFiles();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Future<void> _deleteMessage(String messageId) async {
     final confirmed = await showDialog<bool>(
@@ -1024,7 +1169,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               const SizedBox(width: 8),
                               IconButton(
                                 icon: const Icon(Icons.attach_file, color: Color(0xFF8696A0)),
-                                onPressed: _pickFiles,
+                                onPressed: () => _showAttachmentSheet(context),
                               ),
                               Expanded(
                                 child: TextField(

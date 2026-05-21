@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -579,50 +580,193 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     }
   }
 
+  Future<void> _handlePickedFilePaths(List<String> paths) async {
+    if (paths.isEmpty) return;
+    if (!mounted) return;
+    final previewResult = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttachmentPreviewScreen(filePaths: paths, userName: widget.name),
+      ),
+    );
+
+    if (previewResult != null && previewResult is List) {
+      for (final item in previewResult) {
+        final path = item['path'];
+        final caption = item['caption'];
+        if (path == null) continue;
+        
+        final tempId = 'temp_upload_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
+        final ext = p.extension(path).toLowerCase();
+        String type = 'document';
+        if (['.jpg', '.jpeg', '.png', '.gif'].contains(ext)) type = 'image';
+        if (['.mp4', '.mov', '.avi'].contains(ext)) type = 'video';
+        if (['.mp3', '.m4a', '.wav'].contains(ext)) type = 'audio';
+
+        // Send optimistic message immediately with uploading status
+        _sendMessage(
+          type: type,
+          content: '',
+          caption: caption,
+          fileName: p.basename(path),
+          localPath: path,
+          uploadStatus: MessageUploadStatus.uploading,
+          uploadProgress: 0.05,
+          existingTempId: tempId,
+        );
+
+        // Start background upload
+        _uploadAndSend(path, caption, type, tempId);
+      }
+    }
+  }
+
   Future<void> _pickFiles() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
     if (result != null && result.paths.isNotEmpty) {
       final List<String> paths = result.paths.whereType<String>().toList();
-      
-      if (!mounted) return;
-      final previewResult = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AttachmentPreviewScreen(filePaths: paths, userName: widget.name),
-        ),
-      );
-
-      if (previewResult != null && previewResult is List) {
-        for (final item in previewResult) {
-          final path = item['path'];
-          final caption = item['caption'];
-          if (path == null) continue;
-          
-          final tempId = 'temp_upload_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
-          final ext = p.extension(path).toLowerCase();
-          String type = 'document';
-          if (['.jpg', '.jpeg', '.png', '.gif'].contains(ext)) type = 'image';
-          if (['.mp4', '.mov', '.avi'].contains(ext)) type = 'video';
-          if (['.mp3', '.m4a', '.wav'].contains(ext)) type = 'audio';
-
-          // Send optimistic message immediately with uploading status
-          _sendMessage(
-            type: type,
-            content: '',
-            caption: caption,
-            fileName: p.basename(path),
-            localPath: path,
-            uploadStatus: MessageUploadStatus.uploading,
-            uploadProgress: 0.05,
-            existingTempId: tempId,
-          );
-
-          // Start background upload
-          _uploadAndSend(path, caption, type, tempId);
-        }
-      }
+      _handlePickedFilePaths(paths);
     }
   }
+
+  Future<void> _pickFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    if (image != null) {
+      _handlePickedFilePaths([image.path]);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile> images = await picker.pickMultiImage();
+    if (images.isNotEmpty) {
+      final List<String> paths = images.map((img) => img.path).toList();
+      _handlePickedFilePaths(paths);
+    }
+  }
+
+  void _showAttachmentSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final bool isDark = Theme.of(context).brightness == Brightness.dark;
+        final Color sheetBg = isDark ? const Color(0xFF1F2C34) : Colors.white;
+        final Color textColor = isDark ? Colors.white : Colors.black87;
+        
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Share Content',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildAttachmentOption(
+                      icon: Icons.camera_alt,
+                      color: Colors.orange,
+                      label: 'Camera',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFromCamera();
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.image,
+                      color: Colors.purple,
+                      label: 'Gallery',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFromGallery();
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.insert_drive_file,
+                      color: Colors.teal,
+                      label: 'Document',
+                      textColor: textColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickFiles();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   void _scrollToMessage(String messageId) async {
     final key = _messageKeys[messageId];
@@ -900,7 +1044,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       children: [
         IconButton(
           icon: const Icon(Icons.attach_file, color: Color(0xFF8696A0)),
-          onPressed: _pickFiles,
+          onPressed: () => _showAttachmentSheet(context),
         ),
         Expanded(
           child: TextField(
