@@ -1361,7 +1361,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                   margin: const EdgeInsets.all(4),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
-                    child: Image.network(_replyingToMessage!.content, fit: BoxFit.cover),
+                    child: Image.network(AuthService().getFullUrl(_replyingToMessage!.content) ?? _replyingToMessage!.content, fit: BoxFit.cover),
                   ),
                 ),
               Padding(
@@ -1744,7 +1744,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
       case 'image':
         return InteractiveViewer(
           child: Image.network(
-            content,
+            AuthService().getFullUrl(content) ?? content,
             errorBuilder: (c, e, s) =>
                 const Center(child: Icon(Icons.broken_image, size: 50)),
           ),
@@ -2096,11 +2096,11 @@ class _ChatBubble extends StatelessWidget {
     switch (message.type) {
       case 'image':
         Widget img;
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
           img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
         } else {
           img = Image.network(
-            message.content,
+            AuthService().getFullUrl(message.content) ?? message.content,
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,
@@ -2132,7 +2132,7 @@ class _ChatBubble extends StatelessWidget {
         );
         break;
       case 'audio':
-        media = _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration);
+        media = _AudioPlayerWidget(url: AuthService().getFullUrl(message.content) ?? message.content, isMe: isMe, initialDuration: message.duration);
         break;
       case 'document':
       case 'file':

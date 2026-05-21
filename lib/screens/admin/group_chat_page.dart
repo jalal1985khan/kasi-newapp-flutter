@@ -1348,7 +1348,7 @@ class _GroupChatBubble extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.network(
-              message.content,
+              AuthService().getFullUrl(message.content) ?? message.content,
               width: standardWidth,
               height: 200,
               fit: BoxFit.cover,
@@ -1360,7 +1360,7 @@ class _GroupChatBubble extends StatelessWidget {
       case 'audio':
         contentWidget = SizedBox(
           width: standardWidth,
-          child: _AudioPlayerWidget(url: message.content, isMe: isMe, initialDuration: message.duration),
+          child: _AudioPlayerWidget(url: AuthService().getFullUrl(message.content) ?? message.content, isMe: isMe, initialDuration: message.duration),
         );
         break;
       case 'document':

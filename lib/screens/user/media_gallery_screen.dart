@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:news_cover/services/auth_service.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String url;
@@ -30,10 +31,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   bool _isDocument = false;
   bool _isDownloading = false;
   double? _downloadProgress;
+  late String _absoluteUrl;
 
   @override
   void initState() {
     super.initState();
+    // Resolve potentially relative URL to fully qualified absolute URL
+    _absoluteUrl = AuthService().getFullUrl(widget.url) ?? widget.url;
+
     // Identify if the file should be handled as a document/spreadsheet
     _isDocument = widget.type == 'pdf' || 
                   widget.type == 'document' || 
@@ -55,13 +60,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       final tempDir = await getTemporaryDirectory();
       
       // Extract a safe filename from fileName or url
-      String safeName = widget.fileName ?? widget.url.split('/').last.split('?').first;
+      String safeName = widget.fileName ?? _absoluteUrl.split('/').last.split('?').first;
       if (safeName.isEmpty) {
         safeName = "document_${DateTime.now().millisecondsSinceEpoch}";
       }
       
       // Use URL hash to create a unique directory to prevent local file name collisions
-      final urlHash = widget.url.hashCode.toString();
+      final urlHash = _absoluteUrl.hashCode.toString();
       final cacheDir = Directory('${tempDir.path}/cached_files/$urlHash');
       if (!await cacheDir.exists()) {
         await cacheDir.create(recursive: true);
@@ -96,10 +101,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         });
       }
 
-      debugPrint("📥 Downloading file from CDN: ${widget.url}");
+      debugPrint("📥 Downloading file from CDN: $_absoluteUrl");
       final dio = Dio();
       await dio.download(
-        widget.url,
+        _absoluteUrl,
         filePath,
         onReceiveProgress: (received, total) {
           if (total != -1 && mounted) {
@@ -191,7 +196,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 minScale: 0.5,
                 maxScale: 4.0,
                 child: Image.network(
-                  widget.url,
+                  _absoluteUrl,
                   fit: BoxFit.contain,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
@@ -215,7 +220,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 ),
               )
             : widget.type == 'video'
-                ? VideoPlayerWidget(url: widget.url)
+                ? VideoPlayerWidget(url: _absoluteUrl)
                 : _isDocument
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,

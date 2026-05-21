@@ -1270,7 +1270,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
 
   Widget _buildDialogContent(String type, String content, String fileName) {
     if (type == 'image') {
-      return InteractiveViewer(child: Image.network(content));
+      return InteractiveViewer(child: Image.network(AuthService().getFullUrl(content) ?? content));
     }
     return Center(child: Text(content));
   }
@@ -1485,10 +1485,10 @@ class _ChatBubble extends StatelessWidget {
     switch (message.type) {
       case 'image':
         Widget img;
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
           img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
         } else {
-          img = Image.network(message.content, width: standardWidth, height: 200, fit: BoxFit.cover);
+          img = Image.network(AuthService().getFullUrl(message.content) ?? message.content, width: standardWidth, height: 200, fit: BoxFit.cover);
         }
         media = GestureDetector(
           onTap: () {
@@ -1511,7 +1511,7 @@ class _ChatBubble extends StatelessWidget {
         );
         break;
       case 'audio':
-        media = SizedBox(width: standardWidth, child: _AudioBubblePlayer(url: message.content, isMe: isMe));
+        media = SizedBox(width: standardWidth, child: _AudioBubblePlayer(url: AuthService().getFullUrl(message.content) ?? message.content, isMe: isMe));
         break;
       case 'video':
         media = GestureDetector(
