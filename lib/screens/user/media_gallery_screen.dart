@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:dio/dio.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:news_cover/services/auth_service.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
@@ -29,9 +26,11 @@ class MediaGalleryScreen extends StatefulWidget {
 
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   bool _isDocument = false;
-  bool _isDownloading = false;
-  double? _downloadProgress;
   late String _absoluteUrl;
+
+  WebViewController? _webViewController;
+  bool _isWebViewLoading = true;
+  double _webViewProgress = 0.0;
 
   @override
   void initState() {
@@ -51,105 +50,46 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   (widget.fileName?.toLowerCase().endsWith('.doc') ?? false);
 
     if (_isDocument) {
-      _openFileLocally();
+      _initWebView();
     }
   }
 
-  Future<void> _openFileLocally() async {
-    try {
-      final tempDir = await getTemporaryDirectory();
-      
-      // Extract a safe filename from fileName or url
-      String safeName = widget.fileName ?? _absoluteUrl.split('/').last.split('?').first;
-      if (safeName.isEmpty) {
-        safeName = "document_${DateTime.now().millisecondsSinceEpoch}";
-      }
-      
-      // Use URL hash to create a unique directory to prevent local file name collisions
-      final urlHash = _absoluteUrl.hashCode.toString();
-      final cacheDir = Directory('${tempDir.path}/cached_files/$urlHash');
-      if (!await cacheDir.exists()) {
-        await cacheDir.create(recursive: true);
-      }
-      
-      final filePath = '${cacheDir.path}/$safeName';
-      final file = File(filePath);
-
-      // 1. Instant Cache Hit: If already downloaded and exists, open immediately
-      if (await file.exists() && await file.length() > 0) {
-        debugPrint("📂 Opening document from local cache: $filePath");
-        final result = await OpenFilex.open(filePath);
-        if (mounted) {
-          if (result.type != ResultType.done) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Could not open file: ${result.message}'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
-          Navigator.pop(context); // Go back immediately since it opened in native viewer
-        }
-        return;
-      }
-
-      // 2. Cache Miss: Download directly from CDN to local path
-      if (mounted) {
-        setState(() {
-          _isDownloading = true;
-          _downloadProgress = 0.0;
-        });
-      }
-
-      debugPrint("📥 Downloading file from CDN: $_absoluteUrl");
-      final dio = Dio();
-      await dio.download(
-        _absoluteUrl,
-        filePath,
-        onReceiveProgress: (received, total) {
-          if (total != -1 && mounted) {
-            setState(() {
-              _downloadProgress = received / total;
-            });
-          }
-        },
-      );
-
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = null;
-        });
-      }
-
-      // 3. Open natively
-      final result = await OpenFilex.open(filePath);
-      if (mounted) {
-        if (result.type != ResultType.done) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open file: ${result.message}'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      debugPrint("❌ Error opening file natively: $e");
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to open file: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    }
+  void _initWebView() {
+    final previewUrl = 'https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(_absoluteUrl)}';
+    debugPrint("🌐 Loading document preview in WebView: $previewUrl");
+    
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (int progress) {
+            if (mounted) {
+              setState(() {
+                _webViewProgress = progress / 100.0;
+              });
+            }
+          },
+          onPageStarted: (String url) {
+            if (mounted) {
+              setState(() {
+                _isWebViewLoading = true;
+              });
+            }
+          },
+          onPageFinished: (String url) {
+            if (mounted) {
+              setState(() {
+                _isWebViewLoading = false;
+              });
+            }
+          },
+          onWebResourceError: (WebResourceError error) {
+            debugPrint("❌ WebView resource error: ${error.description}");
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(previewUrl));
   }
 
   @override
@@ -222,22 +162,29 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
             : widget.type == 'video'
                 ? VideoPlayerWidget(url: _absoluteUrl)
                 : _isDocument
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    ? Stack(
                         children: [
-                          const CircularProgressIndicator(color: Color(0xFF00A884)),
-                          const SizedBox(height: 24),
-                          Text(
-                            _isDownloading ? 'Downloading file...' : 'Opening document...',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                          ),
-                          if (_downloadProgress != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              '${(_downloadProgress! * 100).toStringAsFixed(0)}%',
-                              style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          if (_webViewController != null)
+                            WebViewWidget(controller: _webViewController!),
+                          if (_isWebViewLoading)
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const CircularProgressIndicator(color: Color(0xFF00A884)),
+                                  const SizedBox(height: 24),
+                                  const Text(
+                                    'Opening document in-app...',
+                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    '${(_webViewProgress * 100).toStringAsFixed(0)}%',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
                         ],
                       )
                     : const Text('Unsupported media type', style: TextStyle(color: Colors.white)),
