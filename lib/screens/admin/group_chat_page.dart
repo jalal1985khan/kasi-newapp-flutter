@@ -25,6 +25,7 @@ import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import '../user/media_gallery_screen.dart';
 import '../special_widgets/group_call_overlay.dart';
+import '../../services/chat/global_audio_player.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupId;
@@ -1730,33 +1731,7 @@ class _AudioPlayerWidget extends StatefulWidget {
 }
 
 class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
-  final AudioPlayer _player = AudioPlayer();
-  bool _isPlaying = false;
-  Duration _duration = Duration.zero;
-  Duration _position = Duration.zero;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialDuration != null) {
-      _duration = Duration(seconds: widget.initialDuration!);
-    }
-    _player.onPlayerStateChanged.listen((state) {
-      if (mounted) setState(() => _isPlaying = state == PlayerState.playing);
-    });
-    _player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
-    _player.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
-    });
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
+  final GlobalAudioPlayer _audioPlayer = GlobalAudioPlayer();
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
@@ -1772,92 +1747,116 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
         ? (isDark ? const Color(0xFF25D366) : Colors.green[800]!)
         : Colors.blue;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () {
-              if (_isPlaying) {
-                _player.pause();
-              } else {
-                _player.play(UrlSource(widget.url));
-              }
-            },
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: primaryColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+    return AnimatedBuilder(
+      animation: _audioPlayer,
+      builder: (context, child) {
+        final bool isActive = _audioPlayer.activeUrl == widget.url;
+        final bool isPlaying = isActive && _audioPlayer.isPlaying;
+        final bool isLoading = isActive && _audioPlayer.isLoading;
+
+        Duration duration = Duration.zero;
+        if (isActive) {
+          duration = _audioPlayer.duration;
+        } else if (widget.initialDuration != null) {
+          duration = Duration(seconds: widget.initialDuration!);
+        }
+
+        final Duration position = isActive ? _audioPlayer.position : Duration.zero;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 2,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: primaryColor,
-                    inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
-                    thumbColor: primaryColor,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  _audioPlayer.play(widget.url);
+                },
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    shape: BoxShape.circle,
                   ),
-                  child: Slider(
-                    value: _position.inMilliseconds.toDouble().clamp(
-                          0.0,
-                          _duration.inMilliseconds > 0
-                              ? _duration.inMilliseconds.toDouble()
-                              : 1.0,
+                  child: isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Icon(
+                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 20,
                         ),
-                    max: _duration.inMilliseconds > 0
-                        ? _duration.inMilliseconds.toDouble()
-                        : 1.0,
-                    onChanged: (value) {
-                      _player.seek(Duration(milliseconds: value.toInt()));
-                    },
-                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatDuration(_position),
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: isDark ? Colors.white54 : Colors.grey[600]),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 2,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                        activeTrackColor: primaryColor,
+                        inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                        thumbColor: primaryColor,
                       ),
-                      Text(
-                        _formatDuration(_duration),
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: isDark ? Colors.white54 : Colors.grey[600]),
+                      child: Slider(
+                        value: position.inMilliseconds.toDouble().clamp(
+                              0.0,
+                              duration.inMilliseconds > 0
+                                  ? duration.inMilliseconds.toDouble()
+                                  : 1.0,
+                            ),
+                        max: duration.inMilliseconds > 0
+                            ? duration.inMilliseconds.toDouble()
+                            : 1.0,
+                        onChanged: (value) {
+                          if (isActive) {
+                            _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                          }
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _formatDuration(position),
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: isDark ? Colors.white54 : Colors.grey[600]),
+                          ),
+                          Text(
+                            _formatDuration(duration),
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: isDark ? Colors.white54 : Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
