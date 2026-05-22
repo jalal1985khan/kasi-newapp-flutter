@@ -18,12 +18,21 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
   bool _isLoading = true;
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _currentlyPlayingId;
+  String? _currentlyLoadingId;
   String? _currentUserId;
   final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (state == PlayerState.completed && mounted) {
+        setState(() {
+          _currentlyPlayingId = null;
+          _currentlyLoadingId = null;
+        });
+      }
+    });
     _loadData();
   }
 
@@ -53,12 +62,28 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
   }
 
   Future<void> _playRecording(String url, String logId) async {
-    if (_currentlyPlayingId == logId) {
+    if (_currentlyPlayingId == logId || _currentlyLoadingId == logId) {
       await _audioPlayer.stop();
-      setState(() => _currentlyPlayingId = null);
+      if (mounted) {
+        setState(() {
+          _currentlyPlayingId = null;
+          _currentlyLoadingId = null;
+        });
+      }
     } else {
-      await _audioPlayer.play(UrlSource(url));
-      setState(() => _currentlyPlayingId = logId);
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _currentlyLoadingId = logId);
+      try {
+        await _audioPlayer.play(UrlSource(url));
+        if (mounted) {
+          setState(() {
+            _currentlyPlayingId = logId;
+            _currentlyLoadingId = null;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => _currentlyLoadingId = null);
+      }
     }
   }
 
@@ -113,6 +138,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     final isOutgoing = _currentUserId != null && log.caller.id == _currentUserId;
     bool isMissed = ['missed', 'rejected', 'failed'].contains(log.status);
     bool isPlaying = _currentlyPlayingId == log.id;
+    bool isLoading = _currentlyLoadingId == log.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -178,9 +204,16 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                     decoration: BoxDecoration(color: const Color(0xFF00A884), borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       children: [
-                        Icon(isPlaying ? Icons.stop : Icons.play_arrow, size: 18, color: Colors.white),
-                        const SizedBox(width: 4),
-                        Text(isPlaying ? 'Stop' : 'Play', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        if (isLoading)
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        else
+                          Icon(isPlaying ? Icons.stop : Icons.play_arrow, size: 18, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(isLoading ? 'Loading' : (isPlaying ? 'Stop' : 'Play'), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
