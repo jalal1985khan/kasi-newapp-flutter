@@ -3,6 +3,7 @@ import '../dio_client.dart';
 import '../../models/chat_conversation_model.dart';
 import '../../models/chat_message_model.dart';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import '../api_constants.dart';
 import '../auth_service.dart';
 
@@ -94,8 +95,21 @@ class ChatService {
       final token = await AuthService().getAccessToken();
       final fileName = filePath.split('/').last;
       
+      MediaType? contentType;
+      if (fileName.toLowerCase().endsWith('.pdf')) {
+        contentType = MediaType('application', 'pdf');
+      } else if (fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) {
+        contentType = MediaType('application', 'msword');
+      } else if (fileName.toLowerCase().endsWith('.png')) {
+        contentType = MediaType('image', 'png');
+      } else if (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg')) {
+        contentType = MediaType('image', 'jpeg');
+      }
+
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+        'file': await MultipartFile.fromFile(filePath, filename: fileName, contentType: contentType),
+        'type': fileName.toLowerCase().endsWith('.pdf') ? 'raw' : 'auto', // Hint for backend if it accepts it
+        'resource_type': fileName.toLowerCase().endsWith('.pdf') ? 'raw' : 'auto', // Hint for Cloudinary via backend
       });
 
       final response = await _dio.post(

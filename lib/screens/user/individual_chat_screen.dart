@@ -1678,18 +1678,16 @@ class _ChatBubble extends StatelessWidget {
           },
           child: Container(
             width: standardWidth,
-            padding: const EdgeInsets.all(12),
+            height: 200,
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.videocam, color: Colors.blue),
-                const SizedBox(width: 8),
-                Expanded(child: Text(message.fileName ?? 'Video', style: TextStyle(color: textColor, decoration: TextDecoration.underline), overflow: TextOverflow.ellipsis)),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              // We use a simplified video player or just show the video thumbnail.
+              // Since flutter video_player buffers, this will be lightning fast inline.
+              child: VideoPlayerWidget(url: AuthService().getFullUrl(message.content) ?? message.content, inline: true),
             ),
           ),
         );

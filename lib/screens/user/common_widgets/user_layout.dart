@@ -65,7 +65,6 @@ class UserLayout extends StatelessWidget {
         bottom: bottom,
       ),
       drawer: const UserDrawer(),
-      bottomNavigationBar: UserBottomNavigationBar(currentIndex: currentIndex),
       floatingActionButton: floatingActionButton,
       body: onRefresh != null
           ? RefreshIndicator(

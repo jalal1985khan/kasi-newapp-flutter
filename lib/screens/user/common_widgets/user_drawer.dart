@@ -4,9 +4,7 @@ import '../../../providers/chat_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../providers/theme_provider.dart';
 import '../../login_screen.dart';
-import '../user_dashboard_screen.dart';
-import '../user_profile_screen.dart';
-import '../user_chat_call_screen.dart';
+import '../user_main_screen.dart';
 import '../../../newsfeeds/home_screen.dart';
 import '../../../utils/premium_widgets.dart';
 import 'package:flutter/services.dart';
@@ -78,19 +76,19 @@ class _UserDrawerState extends State<UserDrawer> {
                   context,
                   icon: Icons.dashboard_outlined,
                   title: 'Dashboard',
-                  destination: const UserDashboardScreen(),
+                  destination: UserMainScreen(initialIndex: 0),
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.chat_outlined,
                   title: 'Chats and Calls',
-                  destination: const UserChatCallScreen(),
+                  destination: UserMainScreen(initialIndex: 1),
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.person_outline,
                   title: 'Profile',
-                  destination: const UserProfileScreen(),
+                  destination: UserMainScreen(initialIndex: 2),
                 ),
                 _buildNavItem(
                   context,
@@ -167,16 +165,21 @@ class _UserDrawerState extends State<UserDrawer> {
       onTap: () {
         HapticFeedback.lightImpact();
         Navigator.pop(context);
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => destination,
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 300),
-          ),
-        );
+        
+        if (destination is UserMainScreen) {
+          UserMainScreen.switchTab(context, destination.initialIndex);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => destination,
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 300),
+            ),
+          );
+        }
       },
       child: ListTile(
         leading: Icon(icon, color: isDark ? Colors.white70 : Colors.black54),

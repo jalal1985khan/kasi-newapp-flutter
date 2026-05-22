@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../screens/login_screen.dart';
 import '../../services/auth_service.dart';
 import '../../screens/admin/dashboard_screen.dart';
-import '../../screens/user/user_dashboard_screen.dart';
+import '../../screens/user/user_main_screen.dart';
 
 class SecretAdminTap extends StatefulWidget {
   const SecretAdminTap({super.key});
@@ -42,9 +42,9 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
             MaterialPageRoute(builder: (_) => const DashboardScreen()),
           );
         } else {
-          Navigator.push(
+          Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const UserDashboardScreen()),
+            MaterialPageRoute(builder: (_) => UserMainScreen(initialIndex: 0)),
           );
         }
       } else {

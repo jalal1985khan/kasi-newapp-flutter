@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'package:provider/provider.dart';
+import 'user/user_main_screen.dart';
 import 'admin/dashboard_screen.dart';
-import 'user/user_dashboard_screen.dart';
 import '../newsfeeds/home_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -60,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
         if (role == 'admin') {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
         } else if (role == 'employee') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserDashboardScreen()));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserMainScreen(initialIndex: 0)));
         }
       }
     }
@@ -113,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
           if (role == 'admin') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
           } else if (role == 'employee') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserDashboardScreen()));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserMainScreen(initialIndex: 0)));
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Login failed'), backgroundColor: Colors.redAccent));

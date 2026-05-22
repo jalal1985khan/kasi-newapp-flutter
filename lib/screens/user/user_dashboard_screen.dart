@@ -13,6 +13,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../utils/premium_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({super.key});
@@ -130,8 +131,20 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         final updateResult = await AuthService().updateProfile(profileImage: imageUrl);
         
         if (updateResult['success'] == true) {
-          await _loadInitialData();
           if (mounted) {
+            setState(() {
+              if (_user != null) {
+                // We create a new User object because User fields are final
+                _user = User(
+                  id: _user!.id,
+                  name: _user!.name,
+                  username: _user!.username,
+                  employeeId: _user!.employeeId,
+                  isActive: _user!.isActive,
+                  profileImage: imageUrl,
+                );
+              }
+            });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Profile image updated'), backgroundColor: Color(0xFF25D366)),
             );
@@ -340,7 +353,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                 radius: 32,
                 backgroundColor: Colors.white.withOpacity(0.9),
                 backgroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
-                    ? NetworkImage(AuthService().getFullUrl(user.profileImage!)!)
+                    ? CachedNetworkImageProvider(AuthService().getFullUrl(user.profileImage!)!) as ImageProvider
                     : null,
                 child: _isUploadingImage
                     ? const CircularProgressIndicator(color: Color(0xFF00A884))
@@ -420,6 +433,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Widget _buildPremiumRecordCard(EmployeeData record, int index, bool isDark, Color cardColor, Color textColor, Color subTextColor, GlobalKey recordKey) {
     return _PremiumRecordCard(
+      key: ValueKey(record.id),
       record: record,
       index: index,
       isDark: isDark,
@@ -479,10 +493,11 @@ class _PremiumRecordCard extends StatefulWidget {
   final Color textColor;
   final Color subTextColor;
   final User user;
-  final Function(int, User) onDownload;
+  final Future<void> Function(int, User) onDownload;
   final GlobalKey recordKey;
 
   const _PremiumRecordCard({
+    super.key,
     required this.record,
     required this.index,
     required this.isDark,
@@ -500,6 +515,7 @@ class _PremiumRecordCard extends StatefulWidget {
 
 class _PremiumRecordCardState extends State<_PremiumRecordCard> {
   bool _isExpanded = false;
+  bool _isUploading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -567,15 +583,25 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
                   SoftTouchWrapper(
                     onTap: widget.record.uploadedRecordUrl != null 
                         ? () => _showImageModal(context, AuthService().getFullUrl(widget.record.uploadedRecordUrl!) ?? widget.record.uploadedRecordUrl!)
-                        : () => widget.onDownload(widget.index, widget.user),
+                        : (_isUploading ? null : () async {
+                            setState(() => _isUploading = true);
+                            await widget.onDownload(widget.index, widget.user);
+                            if (mounted) setState(() => _isUploading = false);
+                          }),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(color: waTeal.withOpacity(0.1), shape: BoxShape.circle),
-                      child: Icon(
-                        widget.record.uploadedRecordUrl != null ? Icons.remove_red_eye : Icons.cloud_upload_rounded, 
-                        size: 20, 
-                        color: waTeal
-                      ),
+                      child: _isUploading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: waTeal),
+                            )
+                          : Icon(
+                              widget.record.uploadedRecordUrl != null ? Icons.remove_red_eye : Icons.cloud_upload_rounded, 
+                              size: 20, 
+                              color: waTeal
+                            ),
                     ),
                   ),
                 ],
@@ -665,14 +691,13 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
               maxScale: 4,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
-                  },
-                  errorBuilder: (context, error, stackTrace) => Container(
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00A884)),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     color: Colors.white,
                     padding: const EdgeInsets.all(32),
                     child: const Icon(Icons.broken_image, size: 64, color: Colors.grey),

@@ -10,7 +10,9 @@ import '../../../services/chat/socket_service.dart';
 
 class UserBottomNavigationBar extends StatelessWidget {
   final int currentIndex;
-  const UserBottomNavigationBar({super.key, required this.currentIndex});
+  final ValueChanged<int>? onTap;
+  
+  const UserBottomNavigationBar({super.key, required this.currentIndex, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -36,35 +38,7 @@ class UserBottomNavigationBar extends StatelessWidget {
         selectedFontSize: 12,
         unselectedFontSize: 12,
         iconSize: 26,
-        onTap: (index) {
-          if (index == currentIndex) return;
-          HapticFeedback.lightImpact();
-
-          if (index == 1) {
-            print('📡 [Navigation] User tapped Chat tab. Waking socket...');
-            SocketService().connect(force: true);
-          }
-
-          final List<Widget> pages = [
-            const UserDashboardScreen(),
-            const UserChatCallScreen(),
-            const UserProfileScreen(),
-          ];
-
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (_, __, ___) => pages[index],
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              transitionDuration: const Duration(milliseconds: 300),
-            ),
-          );
-        },
+        onTap: onTap ?? (index) {},
         items: [
           const BottomNavigationBarItem(
             icon: Padding(
