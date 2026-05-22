@@ -82,7 +82,7 @@ class SocketService with WidgetsBindingObserver {
         socketUrl,
         IO.OptionBuilder()
             .setTransports(['websocket'])
-            .setAuth({'token': token})
+            .setAuth({'token': token, 'platform': 'mobile'})
             .setExtraHeaders({'Connection': 'upgrade', 'Upgrade': 'websocket'})
             .setQuery({'pingTimeout': '60000', 'pingInterval': '25000'})
             .enableForceNew()
