@@ -87,7 +87,7 @@ class EmployeeData {
   final Map<String, dynamic> data; // Dynamic Excel fields
   final bool isEdited;
   final String updatedAt;
-  final String? uploadedRecordUrl;
+  String? uploadedRecordUrl;
 
   EmployeeData({
     required this.id,

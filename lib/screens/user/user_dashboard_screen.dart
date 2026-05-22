@@ -179,8 +179,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       final uploadResult = await _employeeService.uploadBatchRecordImage(record.id, file.path);
       
       if (uploadResult['success'] == true) {
-        // Refresh data to get the updated uploadedRecordUrl
-        await _loadInitialData();
+        // Update locally instead of full refresh
+        setState(() {
+          record.uploadedRecordUrl = uploadResult['url'];
+        });
         _showSuccessDialog('Record successfully uploaded to cloud.');
       } else {
         throw Exception(uploadResult['error'] ?? 'Failed to upload record');
@@ -564,7 +566,7 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
                   const SizedBox(width: 8),
                   SoftTouchWrapper(
                     onTap: widget.record.uploadedRecordUrl != null 
-                        ? () => _showImageModal(context, widget.record.uploadedRecordUrl!)
+                        ? () => _showImageModal(context, AuthService().getFullUrl(widget.record.uploadedRecordUrl!) ?? widget.record.uploadedRecordUrl!)
                         : () => widget.onDownload(widget.index, widget.user),
                     child: Container(
                       padding: const EdgeInsets.all(8),
