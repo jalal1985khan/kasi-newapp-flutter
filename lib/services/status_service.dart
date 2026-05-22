@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/status_model.dart';
 import '../services/dio_client.dart';
 import '../services/api_constants.dart';
+import '../services/auth_service.dart';
 
 class StatusService {
   final Dio _dio = DioClient().dio;
@@ -53,7 +54,7 @@ class StatusService {
 
   Future<Map<String, dynamic>> uploadStatusMedia(String filePath) async {
     try {
-      final token = await DioClient().getAccessToken();
+      final token = await AuthService().getAccessToken();
       final fileName = filePath.split('/').last;
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(filePath, filename: fileName),

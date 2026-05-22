@@ -4,6 +4,7 @@ import '../../models/chat_conversation_model.dart';
 import '../../models/chat_message_model.dart';
 import 'package:dio/dio.dart';
 import '../api_constants.dart';
+import '../auth_service.dart';
 
 class ChatService {
   final _dio = DioClient().dio;
@@ -90,7 +91,7 @@ class ChatService {
 
   Future<Map<String, dynamic>> uploadMedia(String filePath, {void Function(int, int)? onSendProgress}) async {
     try {
-      final token = await DioClient().getAccessToken();
+      final token = await AuthService().getAccessToken();
       final fileName = filePath.split('/').last;
       
       final formData = FormData.fromMap({
