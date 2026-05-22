@@ -95,15 +95,15 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
     });
 
     _socketService.on('group:created', (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     });
 
     _socketService.on('group:deleted', (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     });
 
     _socketService.on('group:renamed', (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     });
 
     // Real-time message updates

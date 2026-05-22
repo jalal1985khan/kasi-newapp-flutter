@@ -100,13 +100,13 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         setState(() => _onlineStatuses[data['userId']] = data['isOnline'] ?? false);
     };
     _groupCreatedHandler = (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     };
     _groupDeletedHandler = (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     };
     _groupRenamedHandler = (data) {
-      if (mounted) _onRefresh();
+      if (mounted) _loadData(silent: true);
     };
     _messageReceiveHandler = (data) {
       if (mounted) _loadData(silent: true);
