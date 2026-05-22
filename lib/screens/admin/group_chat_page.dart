@@ -256,6 +256,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
       });
 
       setState(() {
+        // Immediately clear typing indicator for the sender
+        final senderName = data['senderName'] as String?;
+        if (senderName != null) {
+          _typingUsers.remove(senderName);
+        }
+
         final int tempIndex = _messages.indexWhere((m) {
           final incomingTempId = data['tempId'];
           if (incomingTempId != null && m.id == incomingTempId) return true;
@@ -995,6 +1001,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     ),
                   ),
             ),
+            if (_typingUsers.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      _typingUsers.length == 1
+                          ? '${_typingUsers.first} is typing...'
+                          : '${_typingUsers.join(', ')} are typing...',
+                      style: const TextStyle(
+                        fontStyle: FontStyle.italic,
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _buildMessageInput(),
           ],
         ),
