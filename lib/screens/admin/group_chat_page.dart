@@ -24,6 +24,7 @@ import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import '../user/media_gallery_screen.dart';
+import '../user/attachment_preview_screen.dart';
 import '../special_widgets/group_call_overlay.dart';
 import '../../services/chat/global_audio_player.dart';
 
@@ -338,42 +339,32 @@ class _GroupChatPageState extends State<GroupChatPage> {
       socket.emit('group:typing:stop', {'groupId': widget.groupId});
     }
 
-    if (existingTempId == null) {
-      // Optimistic update
-      final optimisticMsg = ChatMessage(
-        id: tempId,
-        conversationId: widget.groupId, // Use groupId as conversationId for groups
-        senderId: _currentUserId ?? '',
-        receiverId: '', // Groups don't have a single receiver
-        type: type,
-        content: text,
-        fileName: fileName,
-        isRead: false,
-        deletedFor: [],
-        createdAt: DateTime.now(),
-        senderName: 'You',
-        caption: caption,
-        localPath: localPath,
-        uploadStatus: uploadStatus,
-        uploadProgress: uploadProgress,
-      );
-      setState(() {
+    final optimisticMsg = ChatMessage(
+      id: tempId,
+      conversationId: widget.groupId, // Use groupId as conversationId for groups
+      senderId: _currentUserId ?? '',
+      receiverId: '', // Groups don't have a single receiver
+      type: type,
+      content: text,
+      fileName: fileName,
+      isRead: false,
+      deletedFor: [],
+      createdAt: DateTime.now(),
+      senderName: 'You',
+      caption: caption,
+      localPath: localPath,
+      uploadStatus: uploadStatus,
+      uploadProgress: uploadProgress,
+    );
+
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == tempId);
+      if (idx != -1) {
+        _messages[idx] = optimisticMsg;
+      } else {
         _messages.insert(0, optimisticMsg);
-      });
-    } else {
-      // Update existing optimistic message status
-      setState(() {
-        final idx = _messages.indexWhere((m) => m.id == existingTempId);
-        if (idx != -1) {
-          _messages[idx] = _messages[idx].copyWith(
-            uploadStatus: uploadStatus,
-            uploadProgress: uploadProgress,
-            content: text,
-            type: type,
-          );
-        }
-      });
-    }
+      }
+    });
 
     if (uploadStatus == MessageUploadStatus.success) {
       socket.emit('group:message:send', {
@@ -533,40 +524,43 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _handlePickedFilePaths(List<String> paths) async {
     if (paths.isEmpty) return;
-    final total = paths.length;
-    int current = 0;
 
-    setState(() => _isLoading = true);
-    try {
-      for (final path in paths) {
-        current++;
+    if (!mounted) return;
+    final previewResult = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttachmentPreviewScreen(filePaths: paths, userName: widget.name),
+      ),
+    );
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Uploading to group: $current of $total...'),
-              duration: const Duration(milliseconds: 1500),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+    if (previewResult != null && previewResult is List) {
+      for (final item in previewResult) {
+        final path = item['path'];
+        final caption = item['caption'];
+        if (path == null) continue;
+        
+        final tempId = 'temp_upload_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
+        final ext = p.extension(path).toLowerCase();
+        String type = 'document';
+        if (['.jpg', '.jpeg', '.png', '.gif'].contains(ext)) type = 'image';
+        if (['.mp4', '.mov', '.avi'].contains(ext)) type = 'video';
+        if (['.mp3', '.m4a', '.wav'].contains(ext)) type = 'audio';
 
-        final uploadRes = await _chatService.uploadMedia(path);
-        if (uploadRes['success']) {
-          _sendMessage(
-            type: uploadRes['type'] ?? 'document',
-            content: uploadRes['url'],
-          );
-        }
+        // Send optimistic message immediately with uploading status
+        _sendMessage(
+          type: type,
+          content: '',
+          caption: caption,
+          fileName: p.basename(path),
+          localPath: path,
+          uploadStatus: MessageUploadStatus.uploading,
+          uploadProgress: 0.05,
+          existingTempId: tempId,
+        );
+
+        // Start background upload
+        _uploadAndSend(path, caption, type, id: tempId);
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Group upload failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
