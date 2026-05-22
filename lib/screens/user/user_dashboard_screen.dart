@@ -156,6 +156,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   Future<void> _captureAndSaveRecord(int index, User user) async {
     final key = _recordKeys[index];
     if (key == null) return;
+    
+    final record = _records[index];
 
     setState(() => _isDownloading = true);
     try {
@@ -168,25 +170,21 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
       final pngBytes = byteData.buffer.asUint8List();
 
-      String? downloadPath;
-      if (Platform.isAndroid) {
-        downloadPath = '/storage/emulated/0/Download';
-        final dir = Directory(downloadPath);
-        if (!await dir.exists()) {
-          downloadPath = (await getExternalStorageDirectory())?.path;
-        }
-      } else {
-        downloadPath = (await getApplicationDocumentsDirectory()).path;
-      }
-
-      if (downloadPath == null) throw Exception("Could not determine download path");
-
-      final fileName = 'record_${index + 1}_${user.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('$downloadPath/$fileName');
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'record_${record.id}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(pngBytes);
-      await Gal.putImage(file.path);
 
-      _showSuccessDialog('Record saved to Device Storage: $fileName');
+      // Upload to DigitalOcean Spaces via our backend endpoint
+      final uploadResult = await _employeeService.uploadBatchRecordImage(record.id, file.path);
+      
+      if (uploadResult['success'] == true) {
+        // Refresh data to get the updated uploadedRecordUrl
+        await _loadInitialData();
+        _showSuccessDialog('Record successfully uploaded to cloud.');
+      } else {
+        throw Exception(uploadResult['error'] ?? 'Failed to upload record');
+      }
     } catch (e) {
       _showErrorDialog(e.toString());
     } finally {
@@ -565,11 +563,17 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
                 if (_isExpanded) ...[
                   const SizedBox(width: 8),
                   SoftTouchWrapper(
-                    onTap: () => widget.onDownload(widget.index, widget.user),
+                    onTap: widget.record.uploadedRecordUrl != null 
+                        ? () => _showImageModal(context, widget.record.uploadedRecordUrl!)
+                        : () => widget.onDownload(widget.index, widget.user),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(color: waTeal.withOpacity(0.1), shape: BoxShape.circle),
-                      child: const Icon(Icons.download_rounded, size: 20, color: waTeal),
+                      child: Icon(
+                        widget.record.uploadedRecordUrl != null ? Icons.remove_red_eye : Icons.cloud_upload_rounded, 
+                        size: 20, 
+                        color: waTeal
+                      ),
                     ),
                   ),
                 ],
@@ -640,6 +644,51 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
         const SizedBox(height: 6),
         Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
       ],
+    );
+  }
+
+  void _showImageModal(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 1,
+              maxScale: 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF00A884)));
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(32),
+                    child: const Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

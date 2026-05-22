@@ -21,4 +21,40 @@ class EmployeeService {
       throw Exception(e.message ?? 'Unknown error occurred');
     }
   }
+
+  Future<Map<String, dynamic>> uploadBatchRecordImage(String recordId, String filePath) async {
+    try {
+      final fileName = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        'api/flutter/employee/records/$recordId/upload',
+        data: formData,
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return {
+          'success': true,
+          'url': response.data['uploadedRecordUrl'],
+        };
+      }
+      return {
+        'success': false,
+        'error': response.data['error'] ?? 'Upload failed',
+      };
+    } catch (e) {
+      if (e is DioException) {
+        return {
+          'success': false,
+          'error': e.response?.data['error'] ?? e.message ?? 'Network error',
+        };
+      }
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
 }

@@ -87,6 +87,7 @@ class EmployeeData {
   final Map<String, dynamic> data; // Dynamic Excel fields
   final bool isEdited;
   final String updatedAt;
+  final String? uploadedRecordUrl;
 
   EmployeeData({
     required this.id,
@@ -104,6 +105,7 @@ class EmployeeData {
     required this.data,
     required this.isEdited,
     required this.updatedAt,
+    this.uploadedRecordUrl,
   });
 
   factory EmployeeData.fromJson(Map<String, dynamic> json) {
@@ -123,6 +125,7 @@ class EmployeeData {
       data: json['data'] != null ? Map<String, dynamic>.from(json['data']) : {},
       isEdited: json['isEdited'] ?? false,
       updatedAt: json['updatedAt'] ?? '',
+      uploadedRecordUrl: json['uploadedRecordUrl'],
     );
   }
 }
