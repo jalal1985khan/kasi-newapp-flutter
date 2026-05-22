@@ -940,10 +940,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       children: [
         Positioned.fill(
           child: Image.network(
-            'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png',
+            isDark
+              ? 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/light-bg-theme.png'
+              : 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/transparent-bg.png',
             fit: BoxFit.cover,
-            color: isDark ? Colors.black.withOpacity(0.08) : Colors.black.withOpacity(0.04),
-            colorBlendMode: BlendMode.dstIn,
             errorBuilder: (_, __, ___) => Container(color: isDark ? const Color(0xFF0B141B) : const Color(0xFFE5DDD5)),
           ),
         ),
