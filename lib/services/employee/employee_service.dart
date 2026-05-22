@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../dio_client.dart';
 import '../api_constants.dart';
 import '../../models/employee_me_response.dart';
+import '../auth_service.dart';
 
 class EmployeeService {
   final _dio = DioClient().dio;
@@ -24,6 +25,7 @@ class EmployeeService {
 
   Future<Map<String, dynamic>> uploadBatchRecordImage(String recordId, String filePath) async {
     try {
+      final token = await AuthService().getAccessToken();
       final fileName = filePath.split('/').last;
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(filePath, filename: fileName),
@@ -32,9 +34,10 @@ class EmployeeService {
       final response = await _dio.post(
         'api/flutter/employee/records/$recordId/upload',
         data: formData,
+        options: Options(headers: {if (token != null) 'Authorization': 'Bearer $token'}),
       );
 
-      if (response.statusCode == 200 && response.data['success'] == true) {
+      if (response.statusCode == 200 && response.data != null && response.data is Map && response.data['success'] == true) {
         return {
           'success': true,
           'url': response.data['uploadedRecordUrl'],
@@ -42,13 +45,13 @@ class EmployeeService {
       }
       return {
         'success': false,
-        'error': response.data['error'] ?? 'Upload failed',
+        'error': (response.data is Map) ? (response.data['error'] ?? 'Upload failed') : 'Server error. Please try again.',
       };
     } catch (e) {
       if (e is DioException) {
         return {
           'success': false,
-          'error': e.response?.data['error'] ?? e.message ?? 'Network error',
+          'error': (e.response?.data is Map) ? (e.response?.data['error'] ?? e.message) : (e.message ?? 'Network error'),
         };
       }
       return {
