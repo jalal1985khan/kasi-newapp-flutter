@@ -187,9 +187,38 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                 ),
               ],
             ),
+          ] else if (log.compositionSid != null && log.status == 'ended') ...[
+            Divider(height: 24, color: isDark ? Colors.white10 : Colors.black12),
+            Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.orange.shade400,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Recording is being processed...',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade400, fontStyle: FontStyle.italic),
+                  ),
+                ),
+                InkWell(
+                  onTap: _loadData,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.refresh, size: 18, color: Colors.orange.shade400),
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
       ),
     );
   }
 }
+

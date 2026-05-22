@@ -7,6 +7,7 @@ class CallLog {
   final int duration;
   final int limitSeconds;
   final String? recordingUrl;
+  final String? compositionSid;
   final DateTime createdAt;
 
   CallLog({
@@ -18,6 +19,7 @@ class CallLog {
     required this.duration,
     required this.limitSeconds,
     this.recordingUrl,
+    this.compositionSid,
     required this.createdAt,
   });
 
@@ -46,6 +48,7 @@ class CallLog {
       duration: json['duration'] ?? 0,
       limitSeconds: json['limitSeconds'] ?? 120,
       recordingUrl: json['recordingUrl'],
+      compositionSid: json['compositionSid'],
       createdAt: DateTime.parse(json['createdAt']),
     );
   }
