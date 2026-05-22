@@ -19,7 +19,7 @@ class CallLogService {
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
-        final List logsJson = response.data['logs'] ?? [];
+        final List logsJson = response.data['logs'] ?? response.data['calls'] ?? [];
         return logsJson.map((l) => CallLog.fromJson(l)).toList();
       }
       return null;
@@ -40,7 +40,7 @@ class CallLogService {
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
-        final List logsJson = response.data['logs'] ?? [];
+        final List logsJson = response.data['logs'] ?? response.data['calls'] ?? [];
         return logsJson.map((l) => CallLog.fromJson(l)).toList();
       }
       return null;

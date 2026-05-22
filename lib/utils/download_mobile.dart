@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'dart:developer' as dev;
 
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -24,7 +24,7 @@ import 'package:permission_handler/permission_handler.dart';
 /// ```yaml
 /// dependencies:
 ///   device_info_plus: ^10.0.0
-///   open_filex: ^1.3.0
+///   open_file: ^3.5.10
 ///   path_provider: ^2.1.0
 ///   permission_handler: ^11.0.0
 /// ```
@@ -169,7 +169,7 @@ Future<String> _resolveUniqueFilePath(Directory dir, String fileName) async {
 /// Logs a warning if no app can handle the file — does NOT throw,
 /// because the file was already saved successfully at this point.
 Future<void> _openFile(String filePath) async {
-  final OpenResult result = await OpenFilex.open(filePath);
+  final OpenResult result = await OpenFile.open(filePath);
 
   if (result.type != ResultType.done) {
     dev.log(

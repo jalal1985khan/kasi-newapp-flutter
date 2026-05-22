@@ -20,7 +20,7 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'individual_chat_page.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import '../user/media_gallery_screen.dart';
@@ -1461,7 +1461,7 @@ class _GroupChatBubble extends StatelessWidget {
         await dio.download(url, path);
       }
 
-      await OpenFilex.open(path);
+      await OpenFile.open(path);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -1544,6 +1544,13 @@ class _GroupChatBubble extends StatelessWidget {
             cardBorder = const Color(0xFFBBDEFB);
             badgeBg = const Color(0xFFBBDEFB);
             badgeText = const Color(0xFF0D47A1);
+          } else if (['ppt', 'pptx'].contains(ext)) {
+            fileIcon = Icons.slideshow;
+            iconColor = const Color(0xFFD84315); // PowerPoint Orange-Red
+            cardBg = const Color(0xFFFBE9E7);
+            cardBorder = const Color(0xFFFFCCBC);
+            badgeBg = const Color(0xFFFFCCBC);
+            badgeText = const Color(0xFFD84315);
           } else if (['mp4', 'mov', 'avi'].contains(ext) || message.type == 'video') {
             fileIcon = Icons.video_library;
             iconColor = const Color(0xFFE65100);

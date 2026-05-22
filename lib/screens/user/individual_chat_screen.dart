@@ -8,7 +8,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import 'package:intl/intl.dart';
@@ -1728,6 +1728,13 @@ class _ChatBubble extends StatelessWidget {
             cardBorder = const Color(0xFFBBDEFB);
             badgeBg = const Color(0xFFBBDEFB);
             badgeText = const Color(0xFF0D47A1);
+          } else if (['ppt', 'pptx'].contains(ext)) {
+            fileIcon = Icons.slideshow;
+            iconColor = const Color(0xFFD84315); // PowerPoint Orange-Red
+            cardBg = const Color(0xFFFBE9E7);
+            cardBorder = const Color(0xFFFFCCBC);
+            badgeBg = const Color(0xFFFFCCBC);
+            badgeText = const Color(0xFFD84315);
           } else {
             fileIcon = Icons.insert_drive_file;
             iconColor = const Color(0xFF3F51B5);

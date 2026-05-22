@@ -8,7 +8,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio_lib;
 import 'package:image_picker/image_picker.dart';
@@ -2226,7 +2226,7 @@ class _ChatBubble extends StatelessWidget {
         await dio.download(url, path);
       }
 
-      await OpenFilex.open(path);
+      await OpenFile.open(path);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -2318,6 +2318,13 @@ class _ChatBubble extends StatelessWidget {
             cardBorder = const Color(0xFFBBDEFB);
             badgeBg = const Color(0xFFBBDEFB);
             badgeText = const Color(0xFF0D47A1);
+          } else if (['ppt', 'pptx'].contains(ext)) {
+            fileIcon = Icons.slideshow;
+            iconColor = const Color(0xFFD84315); // PowerPoint Orange-Red
+            cardBg = const Color(0xFFFBE9E7);
+            cardBorder = const Color(0xFFFFCCBC);
+            badgeBg = const Color(0xFFFFCCBC);
+            badgeText = const Color(0xFFD84315);
           } else if (['mp4', 'mov', 'avi'].contains(ext) || message.type == 'video') {
             fileIcon = Icons.video_library;
             iconColor = const Color(0xFFE65100);
