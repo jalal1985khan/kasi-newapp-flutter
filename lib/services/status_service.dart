@@ -25,12 +25,14 @@ class StatusService {
     required String content,
     required String type,
     String? caption,
+    String? originalUrl,
   }) async {
     try {
       final response = await _dio.post(ApiConstants.statuses, data: {
         'content': content,
         'type': type,
         'caption': caption,
+        if (originalUrl != null) 'originalUrl': originalUrl,
       });
       return response.data['success'] == true;
     } catch (e) {
@@ -46,6 +48,40 @@ class StatusService {
     } catch (e) {
       print('Error viewing status: $e');
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadStatusMedia(String filePath) async {
+    try {
+      final token = await DioClient().getAccessToken();
+      final fileName = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        ApiConstants.uploadCloudinary,
+        data: formData,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return {
+          'success': true,
+          'url': response.data['url'],
+          'originalUrl': response.data['originalUrl'],
+        };
+      }
+      return {
+        'success': false,
+        'message': response.data['error'] ?? 'Upload failed',
+      };
+    } catch (e) {
+      print('Error uploading status media: $e');
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
     }
   }
 

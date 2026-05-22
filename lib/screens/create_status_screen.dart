@@ -146,15 +146,17 @@ class _CreateStatusScreenState extends State<CreateStatusScreen> {
 
       setState(() => _isUploading = true);
       try {
-        // 1. Upload media to Cloudinary/Backend storage
-        final uploadResult = await _authService.uploadProfileImage(_mediaFile!.path);
+        // 1. Upload media to Cloudinary & Spaces using the Dual Upload
+        final uploadResult = await _statusService.uploadStatusMedia(_mediaFile!.path);
         
         if (uploadResult['success'] == true) {
           final String mediaUrl = uploadResult['url'];
+          final String originalUrl = uploadResult['originalUrl'];
           
           // 2. Create the status post
           final success = await _statusService.createStatus(
             content: mediaUrl,
+            originalUrl: originalUrl,
             type: _currentMode == 'PHOTO' ? 'image' : 'video',
             caption: _captionController.text.trim(),
           );

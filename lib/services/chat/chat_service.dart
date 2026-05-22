@@ -90,24 +90,30 @@ class ChatService {
 
   Future<Map<String, dynamic>> uploadMedia(String filePath, {void Function(int, int)? onSendProgress}) async {
     try {
-      String fileName = filePath.split('/').last;
-      FormData formData = FormData.fromMap({
+      final token = await DioClient().getAccessToken();
+      final fileName = filePath.split('/').last;
+      
+      final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(filePath, filename: fileName),
       });
 
       final response = await _dio.post(
-        ApiConstants.uploadSpaces, 
+        ApiConstants.uploadCloudinary, 
         data: formData,
-        onSendProgress: onSendProgress,
         options: Options(
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers: {'Authorization': 'Bearer $token'},
+          sendTimeout: const Duration(minutes: 5), // Extended timeout for media
+          receiveTimeout: const Duration(minutes: 5),
         ),
+        onSendProgress: onSendProgress,
       );
 
-      if (response.data['success'] == true) {
-        return response.data; // { success: true, url: '...', type: 'image|audio|...' }
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return {
+          'success': true,
+          'url': response.data['url'],
+          'originalUrl': response.data['originalUrl'], // Can optionally be used for backup tracking
+        };
       } else {
         throw Exception(response.data['error'] ?? 'Upload failed');
       }
