@@ -58,20 +58,8 @@ class SocketService with WidgetsBindingObserver {
         if (!socketUrl.contains(':3001')) {
           socketUrl = '$socketUrl:3001';
         }
-      } else {
-        // If there's no port in the URL string, explicitly append 443 for https or 80 for http
-        // to prevent socket_io_client from fallback defaulting to port 0.
-        final hasExplicitPort = RegExp(r':\d+$').hasMatch(socketUrl) || 
-                               (socketUrl.contains('https://') && socketUrl.substring(8).contains(':')) ||
-                               (socketUrl.contains('http://') && socketUrl.substring(7).contains(':'));
-        if (!hasExplicitPort) {
-          if (socketUrl.startsWith('https://')) {
-            socketUrl = '$socketUrl:443';
-          } else if (socketUrl.startsWith('http://')) {
-            socketUrl = '$socketUrl:80';
-          }
-        }
       }
+
 
       if (socket != null) {
         socket!.dispose();
