@@ -1041,11 +1041,13 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           Column(
             children: [
               Expanded(
-                child: (_isLoading && _messages.isEmpty)
-                    ? _buildSkeletonLoading()
-                    : RefreshIndicator(
-                      onRefresh: _loadData,
-                      child: ListView.builder(
+                child: Stack(
+                  children: [
+                    (_isLoading && _messages.isEmpty)
+                        ? _buildSkeletonLoading()
+                        : RefreshIndicator(
+                          onRefresh: _loadData,
+                          child: ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.all(10),
                         reverse: true,
@@ -1126,55 +1128,57 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
                         },
                       ),
                     ),
-            ),
-            if (_isTyping)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 5,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      '${widget.name} is typing...',
-                      style: const TextStyle(
-                        fontStyle: FontStyle.italic,
-                        fontSize: 12,
-                        color: Colors.grey,
+                    if (_showScrollToBottom)
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: GestureDetector(
+                          onTap: _scrollToBottom,
+                          child: Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF202C33) : Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.keyboard_double_arrow_down,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              size: 24,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              _buildMessageInput(),
-            if (_showScrollToBottom)
-              Positioned(
-                right: 16,
-                bottom: 110,
-                child: GestureDetector(
-                  onTap: _scrollToBottom,
-                  child: Container(
-                    width: 45,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF202C33) : Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+              if (_isTyping)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${widget.name} is typing...',
+                        style: const TextStyle(
+                          fontStyle: FontStyle.italic,
+                          fontSize: 12,
+                          color: Colors.grey,
                         ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.keyboard_double_arrow_down,
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      size: 24,
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              _buildMessageInput(),
             ],
           ),
         ],
@@ -2251,24 +2255,22 @@ class _ChatBubble extends StatelessWidget {
       case 'video':
         Widget img;
         String displayUrl = message.previewUrl ?? message.content;
+
         if (displayUrl.contains('res.cloudinary.com')) {
+          if (message.type == 'video') {
+            displayUrl = displayUrl.replaceAll(RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false), '.jpg');
+          }
+          
           displayUrl = displayUrl.replaceAll('f_auto', 'f_jpg');
           if (!displayUrl.contains('f_jpg') && displayUrl.contains('/upload/')) {
             displayUrl = displayUrl.replaceFirst('/upload/', '/upload/f_jpg/');
           }
-          if (message.type == 'video') {
-            final uri = Uri.tryParse(displayUrl);
-            if (uri != null) {
-              final pathWithoutQuery = uri.origin + uri.path;
-              final int dotIndex = pathWithoutQuery.lastIndexOf('.');
-              if (dotIndex != -1) {
-                displayUrl = '${pathWithoutQuery.substring(0, dotIndex)}.jpg';
-              }
-            }
-          }
         }
 
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+        bool isUnplayableVideo = message.type == 'video' && RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false).hasMatch(displayUrl);
+        bool isLocalUpload = message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'));
+
+        if (isLocalUpload || isUnplayableVideo) {
           if (message.type == 'video') {
             img = Container(
               width: standardWidth,

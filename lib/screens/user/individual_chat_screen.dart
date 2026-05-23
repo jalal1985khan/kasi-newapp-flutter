@@ -862,9 +862,11 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
           Column(
             children: [
               Expanded(
-                child: (_isLoading && _messages.isEmpty)
-                    ? _buildSkeletonLoading()
-                    : ListView.builder(
+                child: Stack(
+                  children: [
+                    (_isLoading && _messages.isEmpty)
+                        ? _buildSkeletonLoading()
+                        : ListView.builder(
                         controller: _scrollController,
                         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                         padding: const EdgeInsets.all(10),
@@ -910,38 +912,40 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                           );
                         },
                       ),
+                    if (_showScrollToBottom)
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: GestureDetector(
+                          onTap: _scrollToBottom,
+                          child: Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF202C33) : Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.keyboard_double_arrow_down,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               _buildMessageInput(),
             ],
           ),
-          if (_showScrollToBottom)
-            Positioned(
-              right: 16,
-              bottom: 100,
-              child: GestureDetector(
-                onTap: _scrollToBottom,
-                child: Container(
-                  width: 45,
-                  height: 45,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF202C33) : Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.keyboard_double_arrow_down,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -1635,9 +1639,12 @@ class _ChatBubble extends StatelessWidget {
     switch (message.type) {
       case 'image':
         Widget img;
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+        bool isUnplayableVideo = message.type == 'video' && RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false).hasMatch(message.previewUrl ?? message.content);
+        bool isLocalUpload = message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'));
+
+        if (isLocalUpload || isUnplayableVideo) {
           if (message.type == 'video') {
-            // Local video cannot be decoded as an image by Image.file
+            // Local or unplayable video cannot be decoded as an image by Image.file / Image.network
             img = Container(
               width: standardWidth,
               height: 200,
@@ -1649,7 +1656,13 @@ class _ChatBubble extends StatelessWidget {
           }
         } else {
           String displayUrl = message.previewUrl ?? message.content;
+          
+          // Safely apply Cloudinary thumbnail transformations
           if (displayUrl.contains('res.cloudinary.com')) {
+            if (message.type == 'video') {
+              displayUrl = displayUrl.replaceAll(RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false), '.jpg');
+            }
+            
             displayUrl = displayUrl.replaceAll('f_auto', 'f_jpg');
             if (!displayUrl.contains('f_jpg') && displayUrl.contains('/upload/')) {
               displayUrl = displayUrl.replaceFirst('/upload/', '/upload/f_jpg/');
@@ -1739,20 +1752,15 @@ class _ChatBubble extends StatelessWidget {
               child: Builder(
                 builder: (context) {
                   String pUrl = message.previewUrl ?? message.content;
+
                   if (pUrl.contains('res.cloudinary.com')) {
+                    if (message.type == 'video') {
+                      pUrl = pUrl.replaceAll(RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false), '.jpg');
+                    }
+                    
                     pUrl = pUrl.replaceAll('f_auto', 'f_jpg');
                     if (!pUrl.contains('f_jpg') && pUrl.contains('/upload/')) {
                       pUrl = pUrl.replaceFirst('/upload/', '/upload/f_jpg/');
-                    }
-                    if (message.type == 'video') {
-                      final uri = Uri.tryParse(pUrl);
-                      if (uri != null) {
-                        final pathWithoutQuery = uri.origin + uri.path;
-                        final int dotIndex = pathWithoutQuery.lastIndexOf('.');
-                        if (dotIndex != -1) {
-                          pUrl = '${pathWithoutQuery.substring(0, dotIndex)}.jpg';
-                        }
-                      }
                     }
                   }
                   final ext = pUrl.split('.').last.toLowerCase();
