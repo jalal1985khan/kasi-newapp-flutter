@@ -1694,7 +1694,13 @@ class _ChatBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: Builder(
                 builder: (context) {
-                  final pUrl = message.previewUrl ?? message.content;
+                  String pUrl = message.previewUrl ?? message.content;
+                  if (message.type == 'video' && pUrl.contains('res.cloudinary.com')) {
+                    final int dotIndex = pUrl.lastIndexOf('.');
+                    if (dotIndex != -1) {
+                      pUrl = '${pUrl.substring(0, dotIndex)}.jpg';
+                    }
+                  }
                   final ext = pUrl.split('.').last.toLowerCase();
                   if (['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext)) {
                     return Stack(

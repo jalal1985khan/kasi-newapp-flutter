@@ -2248,11 +2248,19 @@ class _ChatBubble extends StatelessWidget {
 
     switch (message.type) {
       case 'image':
+      case 'video':
         Widget img;
+        String displayUrl = message.previewUrl ?? message.content;
+        if (message.type == 'video' && displayUrl.contains('res.cloudinary.com')) {
+          final int dotIndex = displayUrl.lastIndexOf('.');
+          if (dotIndex != -1) {
+            displayUrl = '${displayUrl.substring(0, dotIndex)}.jpg';
+          }
+        }
+
         if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
           img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
         } else {
-          final displayUrl = message.previewUrl ?? message.content;
           img = Image.network(
             AuthService().getFullUrl(displayUrl) ?? displayUrl,
             width: standardWidth,
@@ -2261,14 +2269,27 @@ class _ChatBubble extends StatelessWidget {
             errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50),
           );
         }
+
+        if (message.type == 'video') {
+          img = Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              img,
+              const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+            ],
+          );
+        }
+
         media = GestureDetector(
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => MediaGalleryScreen(
-                  url: message.content,
-                  type: 'image',
+                  url: message.previewUrl ?? message.content,
+                  originalUrl: message.content,
+                  type: message.type,
                   fileName: message.fileName,
                   senderName: isMe ? 'You' : userName,
                   userRole: userRole,
@@ -2290,7 +2311,6 @@ class _ChatBubble extends StatelessWidget {
         break;
       case 'document':
       case 'file':
-      case 'video':
         IconData fileIcon = Icons.insert_drive_file;
         Color iconColor = Colors.blue;
         Color cardBg = Colors.grey.shade50;

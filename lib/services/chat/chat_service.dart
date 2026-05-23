@@ -133,17 +133,17 @@ class ChatService {
 
       // Step 2: Upload File directly to Spaces
       final file = File(filePath);
-      final fileLength = await file.length();
+      final fileBytes = await file.readAsBytes();
       
       // Use standard Dio for the direct PUT to avoid base url intercepts
       final directDio = Dio();
       final uploadRes = await directDio.put(
         putUrl,
-        data: file.openRead(),
+        data: fileBytes,
         options: Options(
           headers: {
             Headers.contentTypeHeader: mimeType,
-            Headers.contentLengthHeader: fileLength.toString(),
+            Headers.contentLengthHeader: fileBytes.length.toString(),
             'x-amz-acl': 'public-read',
           },
           sendTimeout: const Duration(minutes: 60), // generous timeout for large files
