@@ -1635,11 +1635,27 @@ class _ChatBubble extends StatelessWidget {
     switch (message.type) {
       case 'image':
         Widget img;
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
-          img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
+        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+          if (message.type == 'video') {
+            // Local video cannot be decoded as an image by Image.file
+            img = Container(
+              width: standardWidth,
+              height: 200,
+              color: Colors.black12,
+              child: const Icon(Icons.videocam, size: 50, color: Colors.grey),
+            );
+          } else {
+            img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
+          }
         } else {
-          final displayUrl = message.previewUrl ?? message.content;
-          img = Image.network(AuthService().getFullUrl(displayUrl) ?? displayUrl, width: standardWidth, height: 200, fit: BoxFit.cover);
+          String displayUrl = message.previewUrl ?? message.content;
+          if (displayUrl.contains('res.cloudinary.com')) {
+            displayUrl = displayUrl.replaceAll('f_auto', 'f_jpg');
+            if (!displayUrl.contains('f_jpg') && displayUrl.contains('/upload/')) {
+              displayUrl = displayUrl.replaceFirst('/upload/', '/upload/f_jpg/');
+            }
+          }
+          img = Image.network(AuthService().getFullUrl(displayUrl) ?? displayUrl, width: standardWidth, height: 200, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50));
         }
         media = GestureDetector(
           onTap: () {
@@ -1695,10 +1711,20 @@ class _ChatBubble extends StatelessWidget {
               child: Builder(
                 builder: (context) {
                   String pUrl = message.previewUrl ?? message.content;
-                  if (message.type == 'video' && pUrl.contains('res.cloudinary.com')) {
-                    final int dotIndex = pUrl.lastIndexOf('.');
-                    if (dotIndex != -1) {
-                      pUrl = '${pUrl.substring(0, dotIndex)}.jpg';
+                  if (pUrl.contains('res.cloudinary.com')) {
+                    pUrl = pUrl.replaceAll('f_auto', 'f_jpg');
+                    if (!pUrl.contains('f_jpg') && pUrl.contains('/upload/')) {
+                      pUrl = pUrl.replaceFirst('/upload/', '/upload/f_jpg/');
+                    }
+                    if (message.type == 'video') {
+                      final uri = Uri.tryParse(pUrl);
+                      if (uri != null) {
+                        final pathWithoutQuery = uri.origin + uri.path;
+                        final int dotIndex = pathWithoutQuery.lastIndexOf('.');
+                        if (dotIndex != -1) {
+                          pUrl = '${pathWithoutQuery.substring(0, dotIndex)}.jpg';
+                        }
+                      }
                     }
                   }
                   final ext = pUrl.split('.').last.toLowerCase();

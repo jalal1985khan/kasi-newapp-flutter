@@ -123,12 +123,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       targetUrl = widget.originalUrl!;
     }
     
-    // For videos, if the previewUrl is an image, we MUST use originalUrl to play the actual video
-    if (widget.type == 'video' && widget.originalUrl != null) {
-      final extUrl = targetUrl.split('?').first.toLowerCase();
-      if (extUrl.endsWith('.jpg') || extUrl.endsWith('.jpeg') || extUrl.endsWith('.png') || extUrl.endsWith('.webp')) {
-        targetUrl = widget.originalUrl!;
-      }
+    // For videos, ALWAYS use the original Spaces URL for playback to prevent Cloudinary f_auto/User-Agent conflicts with ExoPlayer
+    if (widget.type == 'video' && widget.originalUrl != null && widget.originalUrl!.isNotEmpty) {
+      targetUrl = widget.originalUrl!;
     }
 
     // Resolve potentially relative URL to fully qualified absolute URL
@@ -466,39 +463,48 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       body: Stack(
         children: [
           Center(
-            child: widget.type == 'image'
-                ? InteractiveViewer(
-                    minScale: 0.5,
-                    maxScale: 4.0,
-                    child: Image.network(
-                      _absoluteUrl,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                            color: const Color(0xFF00A884),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) => const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.red, size: 48),
-                          SizedBox(height: 16),
-                          Text('Failed to load image', style: TextStyle(color: Colors.white)),
-                        ],
-                      ),
-                    ),
+            child: _absoluteUrl.isEmpty
+                ? const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF00A884)),
+                      SizedBox(height: 16),
+                      Text('Media is processing...', style: TextStyle(color: Colors.white)),
+                    ],
                   )
-                : widget.type == 'video'
-                    ? VideoPlayerWidget(url: _absoluteUrl)
-                    : _isDocument
-                        ? _buildDocumentViewer()
-                        : const Text('Unsupported media type', style: TextStyle(color: Colors.white)),
+                : widget.type == 'image'
+                    ? InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: Image.network(
+                          _absoluteUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: const Color(0xFF00A884),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red, size: 48),
+                              SizedBox(height: 16),
+                              Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      )
+                    : widget.type == 'video'
+                        ? VideoPlayerWidget(url: _absoluteUrl)
+                        : _isDocument
+                            ? _buildDocumentViewer()
+                            : const Text('Unsupported media type', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

@@ -2251,15 +2251,34 @@ class _ChatBubble extends StatelessWidget {
       case 'video':
         Widget img;
         String displayUrl = message.previewUrl ?? message.content;
-        if (message.type == 'video' && displayUrl.contains('res.cloudinary.com')) {
-          final int dotIndex = displayUrl.lastIndexOf('.');
-          if (dotIndex != -1) {
-            displayUrl = '${displayUrl.substring(0, dotIndex)}.jpg';
+        if (displayUrl.contains('res.cloudinary.com')) {
+          displayUrl = displayUrl.replaceAll('f_auto', 'f_jpg');
+          if (!displayUrl.contains('f_jpg') && displayUrl.contains('/upload/')) {
+            displayUrl = displayUrl.replaceFirst('/upload/', '/upload/f_jpg/');
+          }
+          if (message.type == 'video') {
+            final uri = Uri.tryParse(displayUrl);
+            if (uri != null) {
+              final pathWithoutQuery = uri.origin + uri.path;
+              final int dotIndex = pathWithoutQuery.lastIndexOf('.');
+              if (dotIndex != -1) {
+                displayUrl = '${pathWithoutQuery.substring(0, dotIndex)}.jpg';
+              }
+            }
           }
         }
 
-        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
-          img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
+        if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'))) {
+          if (message.type == 'video') {
+            img = Container(
+              width: standardWidth,
+              height: 200,
+              color: Colors.black12,
+              child: const Icon(Icons.videocam, size: 50, color: Colors.grey),
+            );
+          } else {
+            img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
+          }
         } else {
           img = Image.network(
             AuthService().getFullUrl(displayUrl) ?? displayUrl,
