@@ -52,6 +52,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   final AudioRecorder _audioRecorder = AudioRecorder();
 
   List<ChatMessage> _messages = [];
+  ChatMessage? _replyingToMessage;
   bool _isLoading = true;
   String? _currentUserId;
   bool _isRecording = false;
@@ -333,34 +334,42 @@ class _GroupChatPageState extends State<GroupChatPage> {
     MessageUploadStatus uploadStatus = MessageUploadStatus.success,
     double uploadProgress = 1.0,
     String? existingTempId,
-  }) {
+    String? previewUrl,
+  }) async {
     final text = content ?? _messageController.text.trim();
-    if (text.isEmpty && type == 'text') return;
+    if (text.isEmpty && type == 'text' && localPath == null) return;
 
-    final tempId = existingTempId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
-
-    if (type == 'text' && existingTempId == null) {
-      _messageController.clear();
-      _typingTimer?.cancel();
-      socket.emit('group:typing:stop', {'groupId': widget.groupId});
+    String? replyToId = _replyingToMessage?.id;
+    String? replyToContent;
+    String? replyToSenderName;
+    if (_replyingToMessage != null) {
+      replyToSenderName = _replyingToMessage!.senderId == _currentUserId ? 'You' : (_replyingToMessage!.senderName ?? 'Someone');
+      replyToContent = _replyingToMessage!.type == 'image' ? 'Photo' 
+                     : _replyingToMessage!.type == 'audio' ? 'Voice message' 
+                     : _replyingToMessage!.type == 'video' ? 'Video' 
+                     : _replyingToMessage!.content;
     }
 
+    final tempId = existingTempId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final optimisticMsg = ChatMessage(
       id: tempId,
-      conversationId: widget.groupId, // Use groupId as conversationId for groups
+      conversationId: widget.groupId,
       senderId: _currentUserId ?? '',
-      receiverId: '', // Groups don't have a single receiver
-      type: type,
+      receiverId: '',
       content: text,
-      fileName: fileName,
+      type: type,
       isRead: false,
       deletedFor: [],
       createdAt: DateTime.now(),
       senderName: 'You',
+      replyToContent: replyToContent,
+      replyToSenderName: replyToSenderName,
       caption: caption,
+      fileName: fileName,
       localPath: localPath,
       uploadStatus: uploadStatus,
       uploadProgress: uploadProgress,
+      previewUrl: previewUrl,
     );
 
     setState(() {
@@ -370,45 +379,50 @@ class _GroupChatPageState extends State<GroupChatPage> {
       } else {
         _messages.insert(0, optimisticMsg);
       }
+      if (type == 'text' && content == null) _messageController.clear();
+      _replyingToMessage = null;
     });
 
-    if (uploadStatus == MessageUploadStatus.success) {
+    if (uploadStatus == MessageUploadStatus.uploading || uploadStatus == MessageUploadStatus.error) {
+      return;
+    }
+
+    try {
       socket.emit('group:message:send', {
         'groupId': widget.groupId,
         'content': text,
         'type': type,
+        'replyTo': replyToId,
+        'replyToContent': replyToContent,
+        'replyToSenderName': replyToSenderName,
         'caption': caption,
         'fileName': fileName,
         'tempId': tempId,
+        'previewUrl': previewUrl,
+        'preview_url': previewUrl,
       });
+    } catch (e) {
+      if (existingTempId == null) {
+        setState(() => _messages.removeWhere((m) => m.id == tempId));
+      }
     }
   }
 
   Future<void> _uploadAndSend(String path, String caption, String type, {String? id}) async {
-    final tempId = id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
-    
-    // First, show optimistically
-    if (id == null) {
-      _sendMessage(
-        type: type,
-        content: '',
-        caption: caption,
-        fileName: p.basename(path),
-        localPath: path,
-        uploadStatus: MessageUploadStatus.uploading,
-        uploadProgress: 0.0,
-        existingTempId: tempId,
-      );
-    } else {
-      _setUploadStatus(tempId, MessageUploadStatus.uploading, 0.0);
-    }
-
+    final tempId = id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
     try {
       final uploadRes = await _chatService.uploadMedia(
         path,
         onSendProgress: (sent, total) {
           if (mounted) {
-            _setUploadStatus(tempId, MessageUploadStatus.uploading, sent / total);
+            setState(() {
+              final idx = _messages.indexWhere((m) => m.id == tempId);
+              if (idx != -1) {
+                _messages[idx] = _messages[idx].copyWith(
+                  uploadProgress: sent / total,
+                );
+              }
+            });
           }
         },
       );
@@ -416,7 +430,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (uploadRes['success'] == true) {
         _sendMessage(
           type: uploadRes['type'] ?? type,
-          content: uploadRes['url'],
+          content: uploadRes['originalUrl'] ?? uploadRes['url'],
+          previewUrl: uploadRes['url'],
           caption: caption,
           fileName: p.basename(path),
           localPath: path,
@@ -1494,13 +1509,15 @@ class _GroupChatBubble extends StatelessWidget {
     const double standardWidth = 250.0;
     switch (message.type) {
       case 'image':
+        final displayUrl = message.previewUrl ?? message.content;
         contentWidget = GestureDetector(
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => MediaGalleryScreen(
-                  url: message.content,
+                  url: message.previewUrl ?? message.content,
+                  originalUrl: message.content,
                   type: 'image',
                   fileName: message.fileName,
                   senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
@@ -1512,7 +1529,7 @@ class _GroupChatBubble extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.network(
-              AuthService().getFullUrl(message.content) ?? message.content,
+              AuthService().getFullUrl(displayUrl) ?? displayUrl,
               width: standardWidth,
               height: 200,
               fit: BoxFit.cover,
@@ -1626,7 +1643,8 @@ class _GroupChatBubble extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => MediaGalleryScreen(
-                        url: message.content,
+                        url: message.previewUrl ?? message.content,
+                        originalUrl: message.content,
                         type: 'video',
                         fileName: message.fileName,
                         senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
@@ -1643,7 +1661,8 @@ class _GroupChatBubble extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => MediaGalleryScreen(
-                        url: message.content,
+                        url: message.previewUrl ?? message.content,
+                        originalUrl: message.content,
                         type: type,
                         fileName: message.fileName,
                         senderName: isMe ? 'You' : (message.senderName ?? 'Member'),

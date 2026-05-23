@@ -304,7 +304,8 @@ class _BulkUserAddScreenState extends State<BulkUserAddScreen> {
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
 
     return AdminLayout(
-      title: 'Bulk Add',
+      showBottomNav: false,
+      title: 'Bulk Update',
       currentIndex: 1,
       onRefresh: _onRefresh,
       body: SingleChildScrollView(

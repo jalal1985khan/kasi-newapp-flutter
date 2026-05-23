@@ -15,6 +15,7 @@ import 'pdf_viewer_widget.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String url;
+  final String? originalUrl;
   final String type;
   final String? fileName;
   final String senderName;
@@ -23,6 +24,7 @@ class MediaGalleryScreen extends StatefulWidget {
   const MediaGalleryScreen({
     super.key,
     required this.url,
+    this.originalUrl,
     required this.type,
     this.fileName,
     required this.senderName,
@@ -96,17 +98,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   @override
   void initState() {
     super.initState();
-    // Resolve potentially relative URL to fully qualified absolute URL
-    _absoluteUrl = AuthService().getFullUrl(widget.url) ?? widget.url;
-
-    // Cloudinary Hack: If the backend saved a PDF as a .png URL, Cloudinary will only return page 1.
-    // We rewrite the URL to end with .pdf to force Cloudinary to return the full original PDF document!
-    if (_absoluteUrl.contains('res.cloudinary.com') && widget.fileName?.toLowerCase().endsWith('.pdf') == true) {
-      if (_absoluteUrl.toLowerCase().endsWith('.png') || _absoluteUrl.toLowerCase().endsWith('.jpg')) {
-        debugPrint("🔄 Rewriting Cloudinary URL to fetch original multi-page PDF instead of PNG thumbnail.");
-        _absoluteUrl = _absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.')) + '.pdf';
-      }
-    }
 
     final ext = _getResolvedExtension();
     
@@ -125,6 +116,32 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   ext == 'csv' ||
                   ext == 'txt' ||
                   ext == 'md';
+
+    // For documents, prefer originalUrl (Spaces) instead of Cloudinary preview thumbnail
+    String targetUrl = widget.url;
+    if (_isDocument && widget.originalUrl != null) {
+      targetUrl = widget.originalUrl!;
+    }
+    
+    // For videos, if the previewUrl is an image, we MUST use originalUrl to play the actual video
+    if (widget.type == 'video' && widget.originalUrl != null) {
+      final extUrl = targetUrl.split('?').first.toLowerCase();
+      if (extUrl.endsWith('.jpg') || extUrl.endsWith('.jpeg') || extUrl.endsWith('.png') || extUrl.endsWith('.webp')) {
+        targetUrl = widget.originalUrl!;
+      }
+    }
+
+    // Resolve potentially relative URL to fully qualified absolute URL
+    _absoluteUrl = AuthService().getFullUrl(targetUrl) ?? targetUrl;
+
+    // Cloudinary Hack: If the backend saved a PDF as a .png URL, Cloudinary will only return page 1.
+    // We rewrite the URL to end with .pdf to force Cloudinary to return the full original PDF document!
+    if (_absoluteUrl.contains('res.cloudinary.com') && widget.fileName?.toLowerCase().endsWith('.pdf') == true) {
+      if (_absoluteUrl.toLowerCase().endsWith('.png') || _absoluteUrl.toLowerCase().endsWith('.jpg')) {
+        debugPrint("🔄 Rewriting Cloudinary URL to fetch original multi-page PDF instead of PNG thumbnail.");
+        _absoluteUrl = _absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.')) + '.pdf';
+      }
+    }
 
     if (_isDocument) {
       if (ext == 'pdf') {
@@ -278,10 +295,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   // ── Initialize Microsoft Office Inline WebView ──
   void _initInlineDocs() {
-    final msDocsUrl = "https://view.officeapps.live.com/op/embed.aspx?src=${Uri.encodeComponent(_absoluteUrl)}";
+    // Append parameters to forcefully disable Microsoft's native Download/Print buttons and enforce Mobile View natively.
+    final msDocsUrl = "https://view.officeapps.live.com/op/embed.aspx?src=${Uri.encodeComponent(_absoluteUrl)}&wdMobile=1&wdPrint=0&wdEmbedCode=0&wdDownloadButton=0";
     try {
       _inlineWebViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        // Force a Mobile User-Agent so Microsoft Office Web Viewer loads the "Mobile Reading View"
+        // which naturally scales to 100% screen width and reflows text!
+        ..setUserAgent("Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36")
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (String url) {
@@ -306,6 +327,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 style.innerHTML = `
                   #AppHeaderPanel, .WACHeader, .Hero-Header, .CommandBar, 
                   #WACBottomPanel, #MobileBottomBar, .App-BottomBar, 
+                  #StatusBar, .WACStatusBar, #WACStatusBarPanel, .App-StatusBar,
                   [id*="Download"], [class*="Download"], [aria-label*="Download"], a[download], 
                   [id*="Print"], [class*="Print"] { 
                       display: none !important; 
@@ -490,7 +512,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       return WebViewWidget(controller: _inlineWebViewController!);
     } else {
       return const Center(
-        child: Text('Preview could not be loaded.', style: TextStyle(color: Colors.white70)),
+        child: Text('Preview loading.', style: TextStyle(color: Colors.white70)),
       );
     }
   }

@@ -100,9 +100,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _captureAndSave();
-      setState(() {
-        _currentDownloadingEmployee = null;
-      });
+      if (mounted) {
+        setState(() {
+          _currentDownloadingEmployee = null;
+        });
+      }
     });
   }
 
@@ -134,6 +136,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
             SnackBar(
               content: Text('Report for ${_currentDownloadingEmployee?.name} saved!'),
               backgroundColor: const Color(0xFF25D366),
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'OPEN',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Gal.open();
+                  } catch (e) {
+                    debugPrint('Error opening gallery: $e');
+                  }
+                },
+              ),
             ),
           );
         }
@@ -153,6 +167,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Reports',
       currentIndex: 3,
       onRefresh: _onRefresh,
@@ -374,9 +389,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                               color: waTeal.withOpacity(0.08),
                                               borderRadius: BorderRadius.circular(10),
                                             ),
-                                            child: const Icon(Icons.file_download_outlined, color: waTeal, size: 18),
+                                            child: _currentDownloadingEmployee == employee
+                                                ? const Padding(
+                                                    padding: EdgeInsets.all(8.0),
+                                                    child: CircularProgressIndicator(color: waTeal, strokeWidth: 2),
+                                                  )
+                                                : const Icon(Icons.file_download_outlined, color: waTeal, size: 18),
                                           ),
-                                          onPressed: () => _handleDownload(employee),
+                                          onPressed: _currentDownloadingEmployee != null
+                                              ? null
+                                              : () => _handleDownload(employee),
                                         ),
                                       ],
                                     ),

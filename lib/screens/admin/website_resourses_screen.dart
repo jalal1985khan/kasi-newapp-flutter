@@ -501,11 +501,11 @@ class _WebsiteResourcesScreenState extends State<WebsiteResourcesScreen> {
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
     final Color cardBg = isDark ? const Color(0xFF111B21) : Colors.white;
-
     final sortedResources = List<WebsiteResource>.from(_resources)
       ..sort((a, b) => a.sNo.compareTo(b.sNo));
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Resources',
       currentIndex: 4,
       onRefresh: _fetchResources,

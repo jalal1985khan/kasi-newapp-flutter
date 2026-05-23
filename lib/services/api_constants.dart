@@ -29,6 +29,8 @@ class ApiConstants {
   static const String flutterResources = 'api/flutter/resources';
   static const String uploadSpaces = 'api/upload/spaces';
   static const String uploadCloudinary = 'api/upload/cloudinary';
+  static const String uploadPresigned = 'api/upload/presigned';
+  static const String uploadFinalize = 'api/upload/finalize';
   static const String userProfile = 'api/user/profile';
   static const String statuses = 'api/statuses';
   

@@ -427,8 +427,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.6) : Colors.black54;
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Settings',
-      currentIndex: 4, // Settings is usually index 4
+      currentIndex: -1, // Settings is usually index 4
       onRefresh: _onRefresh,
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

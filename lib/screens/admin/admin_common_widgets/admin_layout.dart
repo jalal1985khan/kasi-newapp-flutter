@@ -16,6 +16,7 @@ class AdminLayout extends StatelessWidget {
 
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final bool showBottomNav;
 
   const AdminLayout({
     super.key,
@@ -31,6 +32,7 @@ class AdminLayout extends StatelessWidget {
     this.bottom,
     this.backgroundColor,
     this.foregroundColor,
+    this.showBottomNav = true,
   }) : assert(title != null || titleWidget != null);
 
   @override
@@ -65,7 +67,7 @@ class AdminLayout extends StatelessWidget {
         bottom: bottom,
       ),
       drawer: const AdminDrawer(),
-      bottomNavigationBar: AdminBottomNavBar(currentIndex: currentIndex),
+      bottomNavigationBar: showBottomNav ? AdminBottomNavBar(currentIndex: currentIndex) : null,
       floatingActionButton: floatingActionButton,
       body: onRefresh != null
           ? RefreshIndicator(

@@ -351,6 +351,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     MessageUploadStatus uploadStatus = MessageUploadStatus.success,
     double uploadProgress = 1.0,
     String? existingTempId,
+    String? previewUrl,
   }) async {
     final text = content ?? _messageController.text.trim();
     if (text.isEmpty && type == 'text' && localPath == null) return;
@@ -386,6 +387,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       localPath: localPath,
       uploadStatus: uploadStatus,
       uploadProgress: uploadProgress,
+      previewUrl: previewUrl,
     );
 
     setState(() {
@@ -423,6 +425,8 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
         'caption': caption,
         'fileName': fileName,
         'tempId': tempId,
+        'previewUrl': previewUrl,
+        'preview_url': previewUrl,
       });
     } catch (e) {
       if (existingTempId == null) {
@@ -453,7 +457,8 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       if (uploadRes['success'] == true) {
         _sendMessage(
           type: uploadRes['type'] ?? type,
-          content: uploadRes['url'],
+          content: uploadRes['originalUrl'] ?? uploadRes['url'], // Primary storage Spaces
+          previewUrl: uploadRes['url'], // Fast Cloudinary preview
           caption: caption,
           fileName: p.basename(path),
           localPath: path,
@@ -1633,7 +1638,8 @@ class _ChatBubble extends StatelessWidget {
         if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
           img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
         } else {
-          img = Image.network(AuthService().getFullUrl(message.content) ?? message.content, width: standardWidth, height: 200, fit: BoxFit.cover);
+          final displayUrl = message.previewUrl ?? message.content;
+          img = Image.network(AuthService().getFullUrl(displayUrl) ?? displayUrl, width: standardWidth, height: 200, fit: BoxFit.cover);
         }
         media = GestureDetector(
           onTap: () {
@@ -1642,7 +1648,7 @@ class _ChatBubble extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => MediaGalleryScreen(
-                    url: message.content,
+                    url: message.previewUrl ?? message.content,
                     type: 'image',
                     fileName: message.fileName,
                     senderName: isMe ? 'You' : (message.senderName ?? userName),
@@ -1666,7 +1672,8 @@ class _ChatBubble extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => MediaGalleryScreen(
-                    url: message.content,
+                    url: message.previewUrl ?? message.content,
+                    originalUrl: message.content,
                     type: 'video',
                     fileName: message.fileName,
                     senderName: isMe ? 'You' : (message.senderName ?? userName),
@@ -1685,9 +1692,26 @@ class _ChatBubble extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              // We use a simplified video player or just show the video thumbnail.
-              // Since flutter video_player buffers, this will be lightning fast inline.
-              child: VideoPlayerWidget(url: AuthService().getFullUrl(message.content) ?? message.content, inline: true),
+              child: Builder(
+                builder: (context) {
+                  final pUrl = message.previewUrl ?? message.content;
+                  final ext = pUrl.split('.').last.toLowerCase();
+                  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext)) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(pUrl, fit: BoxFit.cover),
+                        const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+                      ],
+                    );
+                  }
+                  return VideoPlayerWidget(
+                    url: AuthService().getFullUrl(pUrl) ?? pUrl, 
+                    inline: true
+                  );
+                }
+              ),
             ),
           ),
         );
@@ -1773,7 +1797,8 @@ class _ChatBubble extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => MediaGalleryScreen(
-                        url: message.content,
+                        url: message.previewUrl ?? message.content,
+                        originalUrl: message.content,
                         type: type,
                         fileName: message.fileName,
                         senderName: isMe ? 'You' : (message.senderName ?? userName),

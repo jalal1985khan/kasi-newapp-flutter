@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../dio_client.dart';
 import '../../models/chat_conversation_model.dart';
@@ -95,42 +96,89 @@ class ChatService {
       final token = await AuthService().getAccessToken();
       final fileName = filePath.split('/').last;
       
-      MediaType? contentType;
+      String mimeType = 'application/octet-stream';
       if (fileName.toLowerCase().endsWith('.pdf')) {
-        contentType = MediaType('application', 'pdf');
+        mimeType = 'application/pdf';
       } else if (fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) {
-        contentType = MediaType('application', 'msword');
+        mimeType = 'application/msword';
       } else if (fileName.toLowerCase().endsWith('.png')) {
-        contentType = MediaType('image', 'png');
+        mimeType = 'image/png';
       } else if (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg')) {
-        contentType = MediaType('image', 'jpeg');
+        mimeType = 'image/jpeg';
+      } else if (fileName.toLowerCase().endsWith('.mp4')) {
+        mimeType = 'video/mp4';
+      } else if (fileName.toLowerCase().endsWith('.mov')) {
+        mimeType = 'video/quicktime';
+      } else if (fileName.toLowerCase().endsWith('.m4a')) {
+        mimeType = 'audio/mp4';
       }
 
-      final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(filePath, filename: fileName, contentType: contentType),
-        'type': fileName.toLowerCase().endsWith('.pdf') ? 'raw' : 'auto', // Hint for backend if it accepts it
-        'resource_type': fileName.toLowerCase().endsWith('.pdf') ? 'raw' : 'auto', // Hint for Cloudinary via backend
-      });
-
-      final response = await _dio.post(
-        ApiConstants.uploadCloudinary, 
-        data: formData,
+      // Step 1: Get Presigned URL
+      final presignedRes = await _dio.post(
+        ApiConstants.uploadPresigned,
+        data: {'fileName': fileName, 'contentType': mimeType},
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
-          sendTimeout: const Duration(minutes: 5), // Extended timeout for media
-          receiveTimeout: const Duration(minutes: 5),
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (presignedRes.statusCode != 200 || presignedRes.data['success'] != true) {
+        throw Exception(presignedRes.data['error'] ?? 'Failed to get upload URL');
+      }
+
+      final putUrl = presignedRes.data['putUrl'];
+      final spacesUrl = presignedRes.data['spacesUrl'];
+
+      // Step 2: Upload File directly to Spaces
+      final file = File(filePath);
+      final fileLength = await file.length();
+      
+      // Use standard Dio for the direct PUT to avoid base url intercepts
+      final directDio = Dio();
+      final uploadRes = await directDio.put(
+        putUrl,
+        data: file.openRead(),
+        options: Options(
+          headers: {
+            Headers.contentTypeHeader: mimeType,
+            Headers.contentLengthHeader: fileLength.toString(),
+            'x-amz-acl': 'public-read',
+          },
+          sendTimeout: const Duration(minutes: 60), // generous timeout for large files
+          receiveTimeout: const Duration(minutes: 60),
         ),
         onSendProgress: onSendProgress,
       );
+      
+      if (uploadRes.statusCode != 200 && uploadRes.statusCode != 201) {
+         throw Exception('Direct upload to Spaces failed with status ${uploadRes.statusCode}');
+      }
 
-      if (response.statusCode == 200 && response.data['success'] == true) {
+      // Step 3: Finalize Upload (trigger Cloudinary proxy)
+      final finalizeRes = await _dio.post(
+        ApiConstants.uploadFinalize,
+        data: {
+          'spacesUrl': spacesUrl,
+          'fileName': fileName,
+          'contentType': mimeType,
+        },
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          sendTimeout: const Duration(minutes: 2),
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+      );
+
+      if (finalizeRes.statusCode == 200 && finalizeRes.data['success'] == true) {
         return {
           'success': true,
-          'url': response.data['url'],
-          'originalUrl': response.data['originalUrl'], // Can optionally be used for backup tracking
+          'url': finalizeRes.data['url'],
+          'originalUrl': finalizeRes.data['originalUrl'],
         };
       } else {
-        throw Exception(response.data['error'] ?? 'Upload failed');
+        throw Exception(finalizeRes.data['error'] ?? 'Upload finalization failed');
       }
     } on DioException catch (e) {
       throw Exception(e.message ?? 'Failed to upload media');

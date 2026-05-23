@@ -88,6 +88,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Employees',
       currentIndex: 2,
       onRefresh: _onRefresh,

@@ -408,14 +408,15 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   }
 
   void _sendMessage({
-    String type = 'text', 
-    String? content, 
-    String? caption, 
+    String type = 'text',
+    String? content,
+    String? caption,
     String? fileName,
     String? localPath,
     MessageUploadStatus uploadStatus = MessageUploadStatus.success,
     double uploadProgress = 1.0,
     String? existingTempId,
+    String? previewUrl,
   }) async {
     final text = content ?? _messageController.text.trim();
     if (text.isEmpty && type == 'text' && localPath == null) return;
@@ -457,6 +458,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         localPath: localPath,
         uploadStatus: uploadStatus,
         uploadProgress: uploadProgress,
+        previewUrl: previewUrl,
       );
 
       setState(() {
@@ -494,6 +496,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           'caption': caption,
           'fileName': fileName,
           'tempId': tempId,
+          'previewUrl': previewUrl,
         });
       } catch (e) {
         if (existingTempId == null) {
@@ -529,7 +532,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
       if (uploadRes['success'] == true) {
         _sendMessage(
           type: uploadRes['type'] ?? type,
-          content: uploadRes['url'],
+          content: uploadRes['originalUrl'] ?? uploadRes['url'],
+          previewUrl: uploadRes['url'],
           caption: caption,
           fileName: p.basename(path),
           localPath: path,
@@ -2248,8 +2252,9 @@ class _ChatBubble extends StatelessWidget {
         if (message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http')) && !message.content.startsWith('/')) {
           img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
         } else {
+          final displayUrl = message.previewUrl ?? message.content;
           img = Image.network(
-            AuthService().getFullUrl(message.content) ?? message.content,
+            AuthService().getFullUrl(displayUrl) ?? displayUrl,
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,

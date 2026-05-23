@@ -1309,6 +1309,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     final Color waGrey = isDark ? const Color(0xFF8696A0) : Colors.black54;
 
     return AdminLayout(
+      showBottomNav: false,
       titleWidget: _isSearching
           ? TextField(
               controller: _searchController,

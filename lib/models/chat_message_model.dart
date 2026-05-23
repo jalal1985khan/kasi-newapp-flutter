@@ -53,6 +53,8 @@ class ChatMessage {
   final MessageUploadStatus uploadStatus;
   final String? localPath;
 
+  final String? previewUrl;
+
   ChatMessage({
     required this.id,
     required this.conversationId,
@@ -80,6 +82,7 @@ class ChatMessage {
     this.uploadProgress = 1.0,
     this.uploadStatus = MessageUploadStatus.success,
     this.localPath,
+    this.previewUrl,
   });
 
   ChatMessage copyWith({
@@ -109,6 +112,7 @@ class ChatMessage {
     double? uploadProgress,
     MessageUploadStatus? uploadStatus,
     String? localPath,
+    String? previewUrl,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -137,6 +141,7 @@ class ChatMessage {
       uploadProgress: uploadProgress ?? this.uploadProgress,
       uploadStatus: uploadStatus ?? this.uploadStatus,
       localPath: localPath ?? this.localPath,
+      previewUrl: previewUrl ?? this.previewUrl,
     );
   }
 
@@ -167,6 +172,7 @@ class ChatMessage {
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       caption: json['caption'],
       senderProfileImage: json['senderProfileImage'] ?? json['sender_profile_image'] ?? json['sender_avatar'],
+      previewUrl: json['previewUrl'] ?? json['preview_url'],
       uploadProgress: 1.0,
       uploadStatus: MessageUploadStatus.success,
     );

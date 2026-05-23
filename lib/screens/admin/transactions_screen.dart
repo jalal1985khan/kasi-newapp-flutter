@@ -56,6 +56,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Transactions',
       currentIndex: -1,
       onRefresh: _onRefresh,

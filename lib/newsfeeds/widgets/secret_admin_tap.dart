@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../screens/login_screen.dart';
 import '../../services/auth_service.dart';
-import '../../screens/admin/dashboard_screen.dart';
+import '../../screens/admin/admin_main_screen.dart';
 import '../../screens/user/user_main_screen.dart';
 
 class SecretAdminTap extends StatefulWidget {
@@ -37,9 +37,9 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
       if (user != null) {
         final role = user['role'];
         if (role == 'super_admin' || role == 'admin') {
-          Navigator.push(
+          Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            MaterialPageRoute(builder: (_) => const AdminMainScreen()),
           );
         } else {
           Navigator.pushReplacement(

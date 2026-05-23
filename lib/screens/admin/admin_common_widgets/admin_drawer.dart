@@ -12,6 +12,7 @@ import '../reports_screen.dart';
 import '../chat_call_screen.dart';
 import '../admin_settings_screen.dart';
 import '../transactions_screen.dart';
+import '../admin_main_screen.dart';
 import '../../../newsfeeds/home_screen.dart';
 
 class AdminDrawer extends StatefulWidget {
@@ -80,51 +81,57 @@ class _AdminDrawerState extends State<AdminDrawer> {
               children: [
                 _buildNavItem(
                   context,
+                  icon: Icons.dashboard_outlined,
+                  title: 'Dashboard',
+                  tabIndex: 0,
+                ),
+                _buildNavItem(
+                  context,
                   icon: Icons.group_add_outlined,
                   title: 'Upload Excel',
-                  destination: const BulkUserAddScreen(),
+                  tabIndex: 1,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.list_alt,
                   title: 'Employee',
-                  destination: const EmployeeListScreen(),
+                  tabIndex: 2,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.receipt_long_outlined,
                   title: 'Transactions',
-                  destination: const TransactionsScreen(),
+                  tabIndex: 5,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'Accounts',
-                  destination: const AccountsDebitCreditScreen(),
+                  tabIndex: 6,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.web_outlined,
                   title: 'Website Resources',
-                  destination: const WebsiteResourcesScreen(),
+                  tabIndex: 4,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.bar_chart_outlined,
                   title: 'Reports',
-                  destination: const ReportsScreen(),
+                  tabIndex: 7,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.chat_outlined,
                   title: 'Chats and Calls',
-                  destination: const ChatCallScreen(),
+                  tabIndex: 3,
                 ),
                 _buildNavItem(
                   context,
                   icon: Icons.settings_outlined,
                   title: 'Settings',
-                  destination: const AdminSettingsScreen(),
+                  tabIndex: 8,
                 ),
                 _buildNavItem(
                   context,
@@ -192,7 +199,8 @@ class _AdminDrawerState extends State<AdminDrawer> {
     BuildContext context, {
     required IconData icon,
     required String title,
-    required Widget destination,
+    Widget? destination,
+    int? tabIndex,
     int unreadCount = 0,
   }) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -213,10 +221,14 @@ class _AdminDrawerState extends State<AdminDrawer> {
           : null,
       onTap: () {
         Navigator.pop(context);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => destination),
-        );
+        if (tabIndex != null) {
+          AdminMainScreen.switchTab(context, tabIndex);
+        } else if (destination != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => destination),
+          );
+        }
       },
     );
   }

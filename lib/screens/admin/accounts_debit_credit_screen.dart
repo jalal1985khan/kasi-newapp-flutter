@@ -70,6 +70,7 @@ class _AccountsDebitCreditScreenState extends State<AccountsDebitCreditScreen> {
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
 
     return AdminLayout(
+      showBottomNav: false,
       title: 'Accounts',
       currentIndex: -1,
       onRefresh: _onRefresh,

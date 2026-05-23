@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/chat_provider.dart';
-import '../dashboard_screen.dart';
-import '../bulk_user_add_screen.dart';
-import '../website_resourses_screen.dart';
-import '../employee_list_screen.dart';
-import '../chat_call_screen.dart';
+import '../admin_main_screen.dart';
 import '../../../services/chat/socket_service.dart';
 
 class AdminBottomNavBar extends StatelessWidget {
   final int currentIndex;
-  const AdminBottomNavBar({super.key, required this.currentIndex});
+  final Function(int)? onTap;
+  
+  const AdminBottomNavBar({super.key, required this.currentIndex, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +26,10 @@ class AdminBottomNavBar extends StatelessWidget {
         ),
       ),
       child: BottomNavigationBar(
-        currentIndex: currentIndex < 0 ? 0 : currentIndex,
+        currentIndex: currentIndex < 0 ? 0 : (currentIndex > 4 ? 0 : currentIndex),
         type: BottomNavigationBarType.fixed,
         backgroundColor: navBg,
-        selectedItemColor: currentIndex < 0 ? waGrey : waTeal,
+        selectedItemColor: (currentIndex < 0 || currentIndex > 4) ? waGrey : waTeal,
         unselectedItemColor: waGrey,
         selectedFontSize: 11,
         unselectedFontSize: 11,
@@ -39,54 +37,10 @@ class AdminBottomNavBar extends StatelessWidget {
         onTap: (index) {
           if (index == currentIndex) return;
 
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const DashboardScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 1:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const BulkUserAddScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 2:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const EmployeeListScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 3:
-              print('📡 [Navigation] Admin tapped Chat tab. Waking socket...');
-              SocketService().connect(force: true);
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const ChatCallScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
-            case 4:
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const WebsiteResourcesScreen(),
-                  transitionDuration: Duration.zero,
-                ),
-              );
-              break;
+          if (onTap != null) {
+            onTap!(index);
+          } else {
+            AdminMainScreen.switchTab(context, index);
           }
         },
         items: [

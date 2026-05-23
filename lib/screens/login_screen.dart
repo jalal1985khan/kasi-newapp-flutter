@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'user/user_main_screen.dart';
-import 'admin/dashboard_screen.dart';
+import 'admin/admin_main_screen.dart';
 import '../newsfeeds/home_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -59,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
 
         final role = user['role'];
         if (role == 'admin') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminMainScreen()));
         } else if (role == 'employee') {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserMainScreen(initialIndex: 0)));
         }
@@ -112,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Welcome back, $role!'), backgroundColor: const Color(0xFF00A884)));
 
           if (role == 'admin') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminMainScreen()));
           } else if (role == 'employee') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserMainScreen(initialIndex: 0)));
           }

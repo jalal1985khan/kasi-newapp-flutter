@@ -696,7 +696,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   Future<void> _startTwilioCall({required String token, required String roomName}) async {
     try {
       print('Receiver connecting to Twilio Room: $roomName');
-      _stopSounds(); // Ensure ringing stops immediately
+      await _stopSounds(); // Ensure ringing stops immediately
       // Create local audio track
       _localAudioTrack = LocalAudioTrack(true, 'microphone');
 
@@ -804,7 +804,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     }
 
     print('[DEBUG] Permission granted. Stopping ringtone...');
-    _stopSounds();
+    await _stopSounds();
     
     // 1. Fetch join token from backend
     print('[DEBUG] Fetching join token for callId: ${widget.callId}');
@@ -826,6 +826,9 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _elapsedSeconds++);
     });
+    
+    // Give AudioManager a moment to fully release the ringing stream focus
+    await Future.delayed(const Duration(milliseconds: 400));
     
     // 3. Connect to Twilio
     await _startTwilioCall(
