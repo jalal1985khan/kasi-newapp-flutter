@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../dio_client.dart';
 import '../api_constants.dart';
 import '../auth_service.dart';
@@ -92,9 +93,10 @@ class GroupChatService {
   Future<Map<String, dynamic>> getGroupMessages(String groupId) async {
      try {
       final token = await _authService.getAccessToken();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       
       final response = await _dio.get(
-        '${ApiConstants.adminGroups}/$groupId/messages',
+        '${ApiConstants.adminGroups}/$groupId/messages?_t=$timestamp',
         options: Options(
           headers: {
             if (token != null) 'Authorization': 'Bearer $token',
@@ -105,24 +107,30 @@ class GroupChatService {
       if (response.statusCode == 200) {
         return response.data;
       } else {
+        final errorMsg = response.data is Map ? (response.data['error'] ?? 'Failed to load group messages') : 'HTTP ${response.statusCode}';
+        debugPrint('⚠️ [GroupChatService] getGroupMessages error: $errorMsg (status: ${response.statusCode})');
         return {
           'success': false,
-          'error': response.data['error'] ?? 'Failed to load group messages',
+          'error': errorMsg,
         };
       }
     } catch (e) {
       if (e is DioException) {
+        final errorMsg = e.response?.data is Map ? (e.response?.data['error'] ?? e.message ?? 'Network error') : (e.message ?? 'Network error');
+        debugPrint('❌ [GroupChatService] DioException: $errorMsg');
         return {
           'success': false,
-          'error': e.response?.data['error'] ?? e.message ?? 'Network error',
+          'error': errorMsg,
         };
       }
+      debugPrint('❌ [GroupChatService] Exception: $e');
       return {
         'success': false,
         'error': e.toString(),
       };
     }
   }
+
 
   /// Get group details
   Future<Map<String, dynamic>> getGroupDetails(String groupId) async {

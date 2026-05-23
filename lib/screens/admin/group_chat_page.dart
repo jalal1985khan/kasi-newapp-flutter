@@ -306,24 +306,34 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     try {
       final res = await _groupChatService.getGroupMessages(widget.groupId);
-      if (mounted && res['success']) {
-        final List msgsData = res['messages'] ?? [];
-        final groupData = res['group'];
-        setState(() {
-          if (groupData != null) _groupName = groupData['name'];
-          _messages = msgsData
-              .map((m) => ChatMessage.fromJson(m))
-              .toList()
-              .reversed
-              .toList();
-          _isLoading = false;
-        });
-        socket.emit('group:message:read', {'groupId': widget.groupId});
+      debugPrint('📡 [GroupChat] API response for group ${widget.groupId}: success=${res['success']}, error=${res['error']}');
+      if (mounted) {
+        if (res['success'] == true) {
+          final List msgsData = res['messages'] ?? [];
+          final groupData = res['group'];
+          debugPrint('📩 [GroupChat] Loaded ${msgsData.length} messages');
+          setState(() {
+            if (groupData != null) _groupName = groupData['name'];
+            _messages = msgsData
+                .map((m) => ChatMessage.fromJson(m))
+                .toList()
+                .reversed
+                .toList();
+            _isLoading = false;
+          });
+          socket.emit('group:message:read', {'groupId': widget.groupId});
+        } else {
+          // API returned error (404, 403, etc.) — show empty state instead of infinite spinner
+          debugPrint('⚠️ [GroupChat] Failed to load messages: ${res['error']}');
+          setState(() => _isLoading = false);
+        }
       }
     } catch (e) {
+      debugPrint('❌ [GroupChat] Exception loading messages: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   void _sendMessage({
     String type = 'text',
@@ -1350,8 +1360,8 @@ class _GroupChatBubble extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 16,
                   backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey[200],
-                  backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty)
-                      ? NetworkImage(AuthService().getFullUrl(message.senderProfileImage!)!)
+                  backgroundImage: (message.senderProfileImage != null && message.senderProfileImage!.isNotEmpty && AuthService().getFullUrl(message.senderProfileImage) != null)
+                      ? NetworkImage(AuthService().getFullUrl(message.senderProfileImage)!)
                       : null,
                   child: (message.senderProfileImage == null || message.senderProfileImage!.isEmpty)
                       ? Text(
@@ -1459,7 +1469,7 @@ class _GroupChatBubble extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          message.replyToContent!,
+                          message.replyToContent ?? '',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
