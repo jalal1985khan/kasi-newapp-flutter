@@ -1163,6 +1163,12 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                             if (res['success'] == true) {
                               Navigator.pop(context);
                               _onRefresh();
+                              if (res['group'] != null && res['group']['_id'] != null) {
+                                _socketService.socket?.emit('group:notify', {
+                                  'groupId': res['group']['_id'],
+                                  'event': 'created',
+                                });
+                              }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
