@@ -2285,7 +2285,29 @@ class _ChatBubble extends StatelessWidget {
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50),
+            errorBuilder: (c, e, s) {
+              if (message.type == 'video') {
+                return Container(
+                  width: standardWidth,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.video_library, size: 40, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text('Processing...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return const Icon(Icons.broken_image, size: 50);
+            },
           );
         }
 

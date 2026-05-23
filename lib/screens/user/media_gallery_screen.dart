@@ -38,6 +38,7 @@ class MediaGalleryScreen extends StatefulWidget {
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   bool _isDocument = false;
   late String _absoluteUrl;
+  bool _isVideoReadyCheckLoading = false;
 
   // Unified document states
   bool _isDocLoading = true;
@@ -117,30 +118,67 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   ext == 'txt' ||
                   ext == 'md';
 
+    _resolveInitialUrl();
+  }
+
+  Future<void> _resolveInitialUrl() async {
     // For documents, prefer originalUrl (Spaces) instead of Cloudinary preview thumbnail
     String targetUrl = widget.url;
     if (_isDocument && widget.originalUrl != null) {
       targetUrl = widget.originalUrl!;
-    }
-    
-    // For videos, ALWAYS use the original Spaces URL for playback to prevent Cloudinary f_auto/User-Agent conflicts with ExoPlayer
-    if (widget.type == 'video' && widget.originalUrl != null && widget.originalUrl!.isNotEmpty) {
-      targetUrl = widget.originalUrl!;
-    }
+      _absoluteUrl = AuthService().getFullUrl(targetUrl) ?? targetUrl;
+      setState(() {});
+    } else if (widget.type == 'video') {
+      // For videos, we WANT to use Cloudinary for fast, web-optimized playback (moov atom at start).
+      // However, because Cloudinary processes asynchronously, it might return 404 for the first ~20 seconds.
+      if (widget.url.contains('res.cloudinary.com')) {
+        setState(() => _isVideoReadyCheckLoading = true);
+        
+        // Convert the preview image URL to the actual video URL
+        String cloudinaryVideoUrl = widget.url.replaceAll(RegExp(r'\.jpg|\.png'), '.mp4');
+        cloudinaryVideoUrl = cloudinaryVideoUrl.replaceAll('/f_jpg/', '/'); // Strip f_jpg so it hits the default eager MP4 cache!
+        
+        try {
+          final dio = Dio(BaseOptions(
+            connectTimeout: const Duration(milliseconds: 1500),
+            receiveTimeout: const Duration(milliseconds: 1500),
+          ));
+          final response = await dio.head(cloudinaryVideoUrl);
+          if (response.statusCode == 200) {
+            targetUrl = cloudinaryVideoUrl;
+            debugPrint("✅ Cloudinary video is ready! Using fast playback: $targetUrl");
+          } else {
+            debugPrint("⏳ Cloudinary video not ready yet (status ${response.statusCode}). Falling back to Spaces.");
+            targetUrl = widget.originalUrl ?? widget.url;
+          }
+        } catch (e) {
+          debugPrint("⏳ Cloudinary video HEAD failed or timed out (1.5s). Still processing. Falling back to Spaces.");
+          targetUrl = widget.originalUrl ?? widget.url;
+        }
+        
+        setState(() => _isVideoReadyCheckLoading = false);
+      } else if (widget.originalUrl != null && widget.originalUrl!.isNotEmpty) {
+        targetUrl = widget.originalUrl!;
+      }
+      
+      // Resolve potentially relative URL to fully qualified absolute URL
+      _absoluteUrl = AuthService().getFullUrl(targetUrl) ?? targetUrl;
+    } else {
+      // Resolve potentially relative URL to fully qualified absolute URL
+      _absoluteUrl = AuthService().getFullUrl(targetUrl) ?? targetUrl;
 
-    // Resolve potentially relative URL to fully qualified absolute URL
-    _absoluteUrl = AuthService().getFullUrl(targetUrl) ?? targetUrl;
-
-    // Cloudinary Hack: If the backend saved a PDF as a .png URL, Cloudinary will only return page 1.
-    // We rewrite the URL to end with .pdf to force Cloudinary to return the full original PDF document!
-    if (_absoluteUrl.contains('res.cloudinary.com') && widget.fileName?.toLowerCase().endsWith('.pdf') == true) {
-      if (_absoluteUrl.toLowerCase().endsWith('.png') || _absoluteUrl.toLowerCase().endsWith('.jpg')) {
-        debugPrint("🔄 Rewriting Cloudinary URL to fetch original multi-page PDF instead of PNG thumbnail.");
-        _absoluteUrl = _absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.')) + '.pdf';
+      // Cloudinary Hack: If the backend saved a PDF as a .png URL, Cloudinary will only return page 1.
+      // We rewrite the URL to end with .pdf to force Cloudinary to return the full original PDF document!
+      if (_absoluteUrl.contains('res.cloudinary.com') && widget.fileName?.toLowerCase().endsWith('.pdf') == true) {
+        if (_absoluteUrl.toLowerCase().endsWith('.png') || _absoluteUrl.toLowerCase().endsWith('.jpg')) {
+          debugPrint("🔄 Rewriting Cloudinary URL to fetch original multi-page PDF instead of PNG thumbnail.");
+          _absoluteUrl = _absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.')) + '.pdf';
+        }
       }
     }
 
     if (_isDocument) {
+      final ext = _getResolvedExtension();
       if (ext == 'pdf') {
         _initCustomPdfViewer(); // Use PDF.js web viewer for PDFs to prevent native rendering errors
       } else {
