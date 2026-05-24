@@ -8,6 +8,7 @@ import '../user_main_screen.dart';
 import '../../../newsfeeds/home_screen.dart';
 import '../../../utils/premium_widgets.dart';
 import 'package:flutter/services.dart';
+import '../website_resources_screen.dart';
 
 class UserDrawer extends StatefulWidget {
   const UserDrawer({super.key});
@@ -95,6 +96,12 @@ class _UserDrawerState extends State<UserDrawer> {
                   icon: Icons.home_outlined,
                   title: 'News Feed',
                   destination: const HomeScreen(),
+                ),
+                _buildNavItem(
+                  context,
+                  icon: Icons.language,
+                  title: 'Website Resources',
+                  destination: const UserWebsiteResourcesScreen(),
                 ),
                 Divider(color: isDark ? Colors.white10 : Colors.black12),
                 Consumer<ThemeProvider>(
