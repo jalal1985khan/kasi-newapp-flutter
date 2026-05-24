@@ -14,6 +14,7 @@ import 'package:dio/dio.dart' as dio_lib;
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:path/path.dart' as p;
+import '../../services/event_bus.dart';
 import 'attachment_preview_screen.dart';
 import 'media_gallery_screen.dart';
 import 'common_widgets/user_layout.dart';
@@ -69,6 +70,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   StreamSubscription? _socketSubscription;
+  StreamSubscription? _eventBusSubscription;
   bool _showScrollToBottom = false;
 
   // Audio Features
@@ -91,8 +93,16 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _socketSubscription = _socketService.connectionStatus.listen((connected) {
       if (connected && mounted) {
         _socketService.emit('user:status', {'userId': widget.otherUserId});
+        _loadData();
       }
     });
+    
+    _eventBusSubscription = EventBus().stream.listen((event) {
+      if (event == 'fcm_refresh' && mounted) {
+        _loadData();
+      }
+    });
+    
     _scrollController.addListener(_scrollListener);
   }
 
@@ -136,6 +146,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _scrollController.dispose();
     _previewPlayer.dispose();
     _socketSubscription?.cancel();
+    _eventBusSubscription?.cancel();
     _focusNode.dispose();
     super.dispose();
   }

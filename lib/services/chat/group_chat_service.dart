@@ -45,7 +45,8 @@ class GroupChatService {
 
   Future<Map<String, dynamic>> getMyGroups() async {
     try {
-      final response = await _dio.get(ApiConstants.adminGroups, options: await _authOptions());
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final response = await _dio.get('${ApiConstants.adminGroups}?_t=$timestamp', options: await _authOptions());
       return response.data as Map<String, dynamic>? ?? {'success': false, 'groups': []};
     } on DioException catch (e) {
       debugPrint('❌ getMyGroups: ${e.message}');

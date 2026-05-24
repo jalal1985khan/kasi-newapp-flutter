@@ -14,6 +14,7 @@ import '../special_widgets/call_overlay.dart';
 import '../../services/admin/call_log_service.dart';
 import '../../models/call_log_model.dart';
 import '../status_tab_content.dart';
+import 'package:news_cover/services/event_bus.dart';
 
 class ChatCallScreen extends StatefulWidget {
   const ChatCallScreen({super.key});
@@ -37,6 +38,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
   late TabController _tabController;
   final GlobalKey<StatusTabContentState> _statusTabKey = GlobalKey<StatusTabContentState>();
   StreamSubscription? _socketSubscription;
+  StreamSubscription? _eventBusSubscription;
   bool _isGroupsExpanded = true;
   
   // Search state
@@ -72,6 +74,15 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
       if (connected && mounted) {
         debugPrint('📡 [Admin Chat] Socket reconnected, requesting online list...');
         _socketService.emit('user:request_online_list', {});
+        _loadData(silent: true);
+      }
+    });
+    
+    _eventBusSubscription = EventBus().stream.listen((event) {
+      if (event == 'fcm_refresh' && mounted) {
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (mounted) _loadData(silent: true);
+        });
       }
     });
     _loadData();
@@ -137,11 +148,13 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _socketService.off('message:receive', _messageReceiveHandler);
     _socketService.off('message:sent', _messageSentHandler);
     _socketService.off('group:message:receive', _groupMessageReceiveHandler);
+    _socketService.off('group:message:new', _groupMessageReceiveHandler);
     _socketService.off('conversation:update', _conversationUpdateHandler);
     _socketService.off('group:update', _groupUpdateHandler);
 
     _tabController.dispose();
     _socketSubscription?.cancel();
+    _eventBusSubscription?.cancel();
     super.dispose();
   }
 
@@ -156,6 +169,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
     _socketService.on('message:receive', _messageReceiveHandler);
     _socketService.on('message:sent', _messageSentHandler);
     _socketService.on('group:message:receive', _groupMessageReceiveHandler);
+    _socketService.on('group:message:new', _groupMessageReceiveHandler);
     _socketService.on('conversation:update', _conversationUpdateHandler);
     _socketService.on('group:update', _groupUpdateHandler);
   }
@@ -1308,6 +1322,17 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
         );
   }
 
+  int _getGroupUnreadCount(Map group) {
+    if (group['unreadCounts'] != null && _currentUserId != null) {
+      final map = group['unreadCounts'] as Map;
+      return (map[_currentUserId] ?? 0) as int;
+    }
+    if (group['unreadCount'] != null) {
+      return (group['unreadCount'] as int);
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1347,7 +1372,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text('CHATS'),
-                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int)) > 0) ...[
+                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + _getGroupUnreadCount(g)) > 0) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1356,7 +1381,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int))}',
+                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + _getGroupUnreadCount(g))}',
                       style: TextStyle(
                         color: isDark ? Colors.black : waTeal,
                         fontSize: 10,
@@ -1518,10 +1543,15 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
       return db.compareTo(da);
     });
 
-    // Sort groups by last updated
+    // Sort groups by last updated or last message timestamp
     filteredGroups.sort((a, b) {
-      DateTime da = DateTime.tryParse(a['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-      DateTime db = DateTime.tryParse(b['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aMsg = a['lastMessage'];
+      final bMsg = b['lastMessage'];
+      final String aTimeStr = a['updatedAt'] ?? aMsg?['timestamp'] ?? '';
+      final String bTimeStr = b['updatedAt'] ?? bMsg?['timestamp'] ?? '';
+      
+      DateTime da = DateTime.tryParse(aTimeStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = DateTime.tryParse(bTimeStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
     });
 
@@ -1640,12 +1670,12 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                         Text(
                           timeStr,
                           style: TextStyle(
-                            color: (group['unreadCount'] ?? 0) > 0 ? const Color(0xFF25D366) : Colors.grey[500],
+                            color: _getGroupUnreadCount(group) > 0 ? const Color(0xFF25D366) : Colors.grey[500],
                             fontSize: 12,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        if ((group['unreadCount'] ?? 0) > 0)
+                        if (_getGroupUnreadCount(group) > 0)
                           Container(
                             padding: const EdgeInsets.all(7),
                             decoration: const BoxDecoration(
@@ -1653,7 +1683,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                               shape: BoxShape.circle,
                             ),
                             child: Text(
-                              '${group['unreadCount']}',
+                              '${_getGroupUnreadCount(group)}',
                               style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                           )

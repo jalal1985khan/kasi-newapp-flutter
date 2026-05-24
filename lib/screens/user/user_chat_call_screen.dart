@@ -15,6 +15,7 @@ import '../../models/call_log_model.dart';
 import '../special_widgets/call_overlay.dart';
 import '../status_tab_content.dart';
 import '../../utils/premium_widgets.dart';
+import 'package:news_cover/services/event_bus.dart';
 
 class UserChatCallScreen extends StatefulWidget {
   const UserChatCallScreen({super.key});
@@ -36,6 +37,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   final Map<String, bool> _onlineStatuses = {};
   late TabController _tabController;
   StreamSubscription? _socketSubscription;
+  StreamSubscription? _eventBusSubscription;
   bool _isGroupsExpanded = true;
 
   // Search state
@@ -56,6 +58,15 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
       if (connected && mounted) {
         debugPrint('📡 [User Chat] Socket reconnected, requesting online list...');
         _socketService.emit('user:request_online_list', {});
+        _loadData(silent: true);
+      }
+    });
+    
+    _eventBusSubscription = EventBus().stream.listen((event) {
+      if (event == 'fcm_refresh' && mounted) {
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (mounted) _loadData(silent: true);
+        });
       }
     });
     _loadData();
@@ -65,6 +76,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
   void dispose() {
     _tabController.dispose();
     _socketSubscription?.cancel();
+    _eventBusSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -114,6 +126,9 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
       if (mounted) _loadData(silent: true);
     });
     _socketService.on('group:message:receive', (data) {
+      if (mounted) _loadData(silent: true);
+    });
+    _socketService.on('group:message:new', (data) {
       if (mounted) _loadData(silent: true);
     });
     _socketService.on('conversation:update', (data) {
@@ -310,6 +325,17 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
     );
   }
 
+  int _getGroupUnreadCount(Map group) {
+    if (group['unreadCounts'] != null && _currentUserId != null) {
+      final map = group['unreadCounts'] as Map;
+      return (map[_currentUserId] ?? 0) as int;
+    }
+    if (group['unreadCount'] != null) {
+      return (group['unreadCount'] as int);
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -346,7 +372,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text('CHATS'),
-                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int)) > 0) ...[
+                if (_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + _getGroupUnreadCount(g)) > 0) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -355,7 +381,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + ((g['unreadCount'] ?? 0) as int))}',
+                      '${_conversations.fold<int>(0, (sum, c) => sum + c.unreadCount) + _groups.fold<int>(0, (sum, g) => sum + _getGroupUnreadCount(g))}',
                       style: TextStyle(
                         color: isDark ? Colors.black : waTeal,
                         fontSize: 10,
@@ -474,10 +500,15 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
       return db.compareTo(da);
     });
 
-    // Sort groups by last updated
+    // Sort groups by last updated or last message timestamp
     filteredGroups.sort((a, b) {
-      DateTime da = DateTime.tryParse(a['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-      DateTime db = DateTime.tryParse(b['updatedAt'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aMsg = a['lastMessage'];
+      final bMsg = b['lastMessage'];
+      final String aTimeStr = a['updatedAt'] ?? aMsg?['timestamp'] ?? '';
+      final String bTimeStr = b['updatedAt'] ?? bMsg?['timestamp'] ?? '';
+      
+      DateTime da = DateTime.tryParse(aTimeStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      DateTime db = DateTime.tryParse(bTimeStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
     });
 
@@ -553,7 +584,7 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
                   ),
                   title: Text(group['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: textColor)),
                   subtitle: Text(lastMsg != null ? '~${lastMsg['senderName'] ?? 'Member'}: ${lastMsg['content'] ?? ""}' : 'No messages yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: subTextColor, fontSize: 14)),
-                  trailing: _buildTrailing(group['unreadCount'] ?? 0, lastMsg?['timestamp'], subTextColor),
+                  trailing: _buildTrailing(_getGroupUnreadCount(group), lastMsg?['timestamp'], subTextColor),
                   onTap: () async {
                     await Navigator.push(context, MaterialPageRoute(builder: (context) => GroupChatPage(groupId: group['_id'], name: group['name'], isAdmin: false)));
                     _loadData(silent: true);

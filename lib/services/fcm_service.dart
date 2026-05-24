@@ -5,6 +5,7 @@ import 'package:news_cover/services/api_constants.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:news_cover/services/chat/socket_service.dart';
+import 'package:news_cover/services/event_bus.dart';
 
 /**
  * FCM Service — Handles push notifications for Android & iOS.
@@ -41,6 +42,7 @@ class FCMService {
           print('Notification tapped: ${resp.payload}');
           print('📡 [FCM] Local notification tapped. Waking socket...');
           SocketService().connect(force: true);
+          EventBus().fire('fcm_refresh');
         },
       );
 
@@ -51,14 +53,15 @@ class FCMService {
         } else {
           _showLocalNotification(message);
         }
-        print('📡 [FCM] Foreground notification received. Waking socket...');
-        SocketService().connect(force: true);
+        print('📡 [FCM] Foreground notification received. Firing refresh event...');
+        EventBus().fire('fcm_refresh');
       });
 
       // 4b. Handle Background messages click
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         print('📡 [FCM] App opened from background via notification. Waking socket...');
         SocketService().connect(force: true);
+        EventBus().fire('fcm_refresh');
       });
 
       // 4c. Check if app launched from terminated state via notification click
@@ -66,6 +69,7 @@ class FCMService {
         if (initialMessage != null) {
           print('📡 [FCM] App launched from terminated state via notification. Waking socket...');
           SocketService().connect(force: true);
+          EventBus().fire('fcm_refresh');
         }
       });
 

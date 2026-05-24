@@ -23,7 +23,10 @@ import '../../services/chat/global_audio_player.dart';
 import '../user/attachment_preview_screen.dart';
 import '../user/media_gallery_screen.dart';
 import '../special_widgets/group_call_overlay.dart';
+import '../special_widgets/premium_recording_indicator.dart';
+import '../../utils/premium_widgets.dart';
 import 'group_info_page.dart';
+import '../../services/event_bus.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -114,17 +117,29 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   // ─── Message Keys (for scroll to reply) ───────────────────────────────────
   final Map<String, GlobalKey> _msgKeys = {};
+  
+  StreamSubscription? _socketSubscription;
+  StreamSubscription? _eventBusSubscription;
 
   @override
   void initState() {
     super.initState();
     _groupName = widget.groupName;
     _scrollCtrl.addListener(_onScroll);
+    
+    _eventBusSubscription = EventBus().stream.listen((event) {
+      if (event == 'fcm_refresh' && mounted) {
+        _syncFromServer();
+      }
+    });
+    
     _init();
   }
 
   @override
   void dispose() {
+    _socketSubscription?.cancel();
+    _eventBusSubscription?.cancel();
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     _focusNode.dispose();
@@ -132,6 +147,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _previewPlayer.dispose();
     _recordTimer?.cancel();
     _socket.off('group:message:new');
+    _socket.off('group:message:receive');
     _socket.off('group:typing:start');
     _socket.off('group:typing:stop');
     _socket.off('group:message:deleted');
@@ -189,7 +205,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
       final serverMessages = rawList
           .map((e) => _groupMessageFromJson(e as Map<String, dynamic>))
-          .toList();
+          .toList()
+          .reversed
+          .toList(); // newest first → index 0 = bottom
 
       // Upsert to local DB
       await _db.insertMessages(serverMessages);
@@ -216,11 +234,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
         beforeId: _messages.last.id,
       );
       final rawList = res['messages'] as List? ?? [];
-      final more = rawList.map((e) => _groupMessageFromJson(e)).toList();
+      final more = rawList
+          .map((e) => _groupMessageFromJson(e))
+          .toList()
+          .reversed
+          .toList(); // oldest pages go to end
       await _db.insertMessages(more);
       if (mounted) {
         setState(() {
-          _messages.addAll(more);
+          _messages.addAll(more); // older messages appended to end (rendered at top)
           _hasMore = res['hasMore'] == true;
           _isLoadingMore = false;
         });
@@ -256,9 +278,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
   // ─── Socket ────────────────────────────────────────────────────────────────
 
   void _setupSocket() {
-    _socket.emit('group:join', {'groupId': widget.groupId});
+    _socketSubscription?.cancel();
+    _socketSubscription = _socket.connectionStatus.listen((connected) {
+      if (connected && mounted) {
+        _socket.emit('group:join', {'groupId': widget.groupId});
+        _syncFromServer(); // Fetch messages on reconnect/FCM wake
+      }
+    });
 
-    _socket.on('group:message:new', (data) {
+    void handleIncoming(dynamic data) {
       if (!mounted) return;
       final incoming = _groupMessageFromJson(data as Map<String, dynamic>);
 
@@ -288,7 +316,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
       _db.insertMessage(incoming);
       _scrollToBottomIfNear();
-    });
+    }
+
+    _socket.on('group:message:new', handleIncoming);
+    _socket.on('group:message:receive', handleIncoming);
 
     _socket.on('group:typing:start', (data) {
       if (!mounted) return;
@@ -741,9 +772,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Copied to clipboard')));
                   }),
+                _menuItem(Icons.info_outline, 'Info', textColor, () {
+                  Navigator.pop(ctx);
+                  _showMessageInfo(msg);
+                }),
                 _menuItem(Icons.forward, 'Forward', textColor, () {
                   Navigator.pop(ctx);
-                  // TODO: forward sheet
+                  _forwardMessage(msg);
                 }),
                 if (isMe)
                   _menuItem(Icons.delete, 'Delete', Colors.red, () {
@@ -763,6 +798,119 @@ class _GroupChatPageState extends State<GroupChatPage> {
       leading: Icon(icon, color: color),
       title: Text(label, style: TextStyle(color: color)),
       onTap: onTap,
+    );
+  }
+
+  void _showMessageInfo(ChatMessage message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Message Info'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sent: ${DateFormat('hh:mm:ss a, MMM dd').format(message.createdAt.toLocal())}'),
+            const SizedBox(height: 8),
+            Text('Status: ${message.isRead ? "Read" : "Delivered"}'),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  void _forwardMessage(ChatMessage message) async {
+    final chatService = ChatService();
+    final allPartners = await chatService.getPartners();
+    
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final bool isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color bgColor = isDark ? const Color(0xFF111B21) : Colors.white;
+          final Color textColor = isDark ? Colors.white : Colors.black87;
+          
+          return DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (context, scrollController) => Container(
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey[600], borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Forward to...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+                        IconButton(icon: Icon(Icons.close, color: textColor), onPressed: () => Navigator.pop(context)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: allPartners.length,
+                      itemBuilder: (context, index) {
+                        final partner = allPartners[index];
+                        final name = partner['name'] ?? 'Unknown';
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFF00A884).withOpacity(0.2),
+                            child: Text(name[0].toUpperCase(), style: const TextStyle(color: Color(0xFF00A884), fontWeight: FontWeight.bold)),
+                          ),
+                          title: Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
+                          onTap: () async {
+                            Navigator.pop(context);
+                            final convId = await chatService.startConversation(partner['_id'] ?? partner['id']);
+                            if (convId != null) {
+                              SocketService().emit('message:send', {
+                                'conversationId': convId,
+                                'receiverId': partner['_id'] ?? partner['id'],
+                                'content': message.content,
+                                'type': message.type,
+                                'isForwarded': true,
+                                'replyToContent': message.replyToContent,
+                                'replyToSenderName': message.replyToSenderName,
+                              });
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Forwarded to $name'),
+                                    behavior: SnackBarBehavior.floating,
+                                    backgroundColor: const Color(0xFF00A884),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1208,96 +1356,151 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildInput(bool isDark) {
-    final bg = isDark ? const Color(0xFF1F2C34) : Colors.white;
-    final inputBg = isDark ? const Color(0xFF2A3942) : const Color(0xFFF0F2F5);
+    const Color waTeal = Color(0xFF00A884);
+    final Color inputBg = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
 
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-        color: bg,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Attachment button
-            IconButton(
-              icon: Icon(Icons.attach_file,
-                  color: isDark ? Colors.white60 : Colors.grey),
-              onPressed: _showAttachmentSheet,
-            ),
-            // Text input
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 120),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: inputBg,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: TextField(
-                  controller: _textCtrl,
-                  focusNode: _focusNode,
-                  maxLines: null,
-                  style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87),
-                  decoration: InputDecoration(
-                    hintText: 'Message',
-                    hintStyle: TextStyle(
-                        color:
-                            isDark ? Colors.white38 : Colors.black38),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (_) => _onTyping(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            // Send / Record button
-            GestureDetector(
-              onTap: () {
-                if (_textCtrl.text.trim().isNotEmpty) {
-                  _sendTextMessage();
-                }
-              },
-              onLongPressStart: (_) => _startRecording(),
-              onLongPressEnd: (_) => _stopRecording(),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00A884),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                        color: const Color(0xFF00A884)
-                            .withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2))
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_replyingTo != null) _buildReplyPreview(isDark),
+          _showAudioPreview
+              ? _buildAudioPreviewBar(isDark)
+              : Row(
+                  children: [
+                    _isRecording
+                        ? Expanded(
+                            child: PremiumRecordingIndicator(
+                              duration: Duration(seconds: _recordSeconds),
+                              onCancel: () {
+                                _recordTimer?.cancel();
+                                _recorder.stop();
+                                setState(() => _isRecording = false);
+                              },
+                              onStop: _stopRecording,
+                            ),
+                          )
+                        : Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: inputBg,
+                                borderRadius: BorderRadius.circular(25),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.attach_file, color: isDark ? Colors.white60 : Colors.grey),
+                                    onPressed: _showAttachmentSheet,
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      constraints: const BoxConstraints(maxHeight: 120),
+                                      child: TextField(
+                                        controller: _textCtrl,
+                                        focusNode: _focusNode,
+                                        maxLines: null,
+                                        style: TextStyle(color: textColor),
+                                        decoration: InputDecoration(
+                                          hintText: 'Message',
+                                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                                          border: InputBorder.none,
+                                          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                                        ),
+                                        onChanged: (_) => _onTyping(),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                    if (!_isRecording) ...[
+                      const SizedBox(width: 8),
+                      SoftTouchWrapper(
+                        onTap: () {
+                          if (_textCtrl.text.isNotEmpty) {
+                            _sendTextMessage();
+                          } else {
+                            _startRecording();
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: waTeal,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: waTeal.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: _textCtrl,
+                            builder: (_, v, __) => AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                v.text.trim().isNotEmpty ? Icons.send : Icons.mic,
+                                key: ValueKey(v.text.trim().isNotEmpty),
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _textCtrl,
-                  builder: (_, v, __) => AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      _isRecording
-                          ? Icons.stop
-                          : v.text.trim().isNotEmpty
-                              ? Icons.send
-                              : Icons.mic,
-                      key: ValueKey(_isRecording
-                          ? 'stop'
-                          : v.text.trim().isNotEmpty
-                              ? 'send'
-                              : 'mic'),
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ),
+        ],
+      ),
+    );
+  }
+  Widget _buildReplyPreview(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+          color: isDark ? Colors.black26 : Colors.black12,
+          borderRadius: BorderRadius.circular(12),
+          border: const Border(left: BorderSide(color: Color(0xFF53BDEB), width: 4))),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    _replyingTo!.senderId == _currentUserId
+                        ? 'You'
+                        : (_replyingTo!.senderName ?? 'Member'),
+                    style: const TextStyle(
+                        color: Color(0xFF53BDEB),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+                Text(_replyingTo!.content,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
             ),
-          ],
-        ),
+          ),
+          IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              onPressed: () => setState(() => _replyingTo = null)),
+        ],
       ),
     );
   }
@@ -1453,23 +1656,28 @@ class _GroupBubble extends StatelessWidget {
                             ),
                           ),
                         ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: bubbleBg,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(14),
-                            topRight: const Radius.circular(14),
-                            bottomLeft: Radius.circular(isMe ? 14 : 0),
-                            bottomRight: Radius.circular(isMe ? 0 : 14),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 4)
-                          ],
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
-                        child: Column(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: bubbleBg,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(15),
+                              topRight: const Radius.circular(15),
+                              bottomLeft: Radius.circular(isMe ? 15 : 5),
+                              bottomRight: Radius.circular(isMe ? 5 : 15),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 2,
+                                  offset: const Offset(0, 1))
+                            ],
+                          ),
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Reply quote
@@ -1496,6 +1704,7 @@ class _GroupBubble extends StatelessWidget {
                             _buildTimestamp(isDark, subColor),
                           ],
                         ),
+                      ),
                       ),
                       // Reaction
                       if (message.reaction != null &&
@@ -1743,53 +1952,167 @@ class _GroupBubble extends StatelessWidget {
   }
 
   Widget _buildDocBubble(BuildContext ctx, bool isDark, Color textColor) {
-    final ext = (message.fileName ?? '').split('.').lastOrNull?.toLowerCase() ?? '';
-    IconData icon;
-    Color iconColor;
-    if (['pdf'].contains(ext)) {
-      icon = Icons.picture_as_pdf;
-      iconColor = Colors.red;
-    } else if (['doc', 'docx'].contains(ext)) {
-      icon = Icons.description;
-      iconColor = Colors.blue;
-    } else {
-      icon = Icons.insert_drive_file;
-      iconColor = Colors.teal;
+    IconData fileIcon = Icons.insert_drive_file;
+    Color iconColor = Colors.blue;
+    Color cardBg = Colors.grey.shade50;
+    Color cardBorder = Colors.grey.shade200;
+    Color badgeBg = Colors.grey.shade100;
+    Color badgeText = Colors.grey.shade700;
+    String ext = 'FILE';
+
+    if (message.fileName != null) {
+      ext = message.fileName!.split('.').last.toLowerCase();
+      if (ext == 'pdf') {
+        fileIcon = Icons.picture_as_pdf;
+        iconColor = const Color(0xFFE53935);
+        cardBg = const Color(0xFFFFF1F1);
+        cardBorder = const Color(0xFFFFD5D5);
+        badgeBg = const Color(0xFFFFE0E0);
+        badgeText = const Color(0xFFC62828);
+      } else if (['xls', 'xlsx', 'csv'].contains(ext)) {
+        fileIcon = Icons.table_chart;
+        iconColor = const Color(0xFF2E7D32);
+        cardBg = const Color(0xFFE8F5E9);
+        cardBorder = const Color(0xFFC8E6C9);
+        badgeBg = const Color(0xFFC8E6C9);
+        badgeText = const Color(0xFF1B5E20);
+      } else if (['doc', 'docx'].contains(ext)) {
+        fileIcon = Icons.description;
+        iconColor = const Color(0xFF1565C0);
+        cardBg = const Color(0xFFE3F2FD);
+        cardBorder = const Color(0xFFBBDEFB);
+        badgeBg = const Color(0xFFBBDEFB);
+        badgeText = const Color(0xFF0D47A1);
+      } else if (['ppt', 'pptx'].contains(ext)) {
+        fileIcon = Icons.slideshow;
+        iconColor = const Color(0xFFD84315);
+        cardBg = const Color(0xFFFBE9E7);
+        cardBorder = const Color(0xFFFFCCBC);
+        badgeBg = const Color(0xFFFFCCBC);
+        badgeText = const Color(0xFFD84315);
+      } else {
+        fileIcon = Icons.insert_drive_file;
+        iconColor = const Color(0xFF3F51B5);
+        cardBg = const Color(0xFFE8EAF6);
+        cardBorder = const Color(0xFFC5CAE9);
+        badgeBg = const Color(0xFFC5CAE9);
+        badgeText = const Color(0xFF1A237E);
+      }
     }
 
-    return GestureDetector(
-      onTap: () async {
-        final url = message.content;
-        if (message.localPath != null && File(message.localPath!).existsSync()) {
-          await OpenFile.open(message.localPath!);
-        } else if (url.startsWith('http')) {
-          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        }
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 36),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.fileName ?? 'Document',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
+    if (isMe) {
+      cardBg = Colors.white.withValues(alpha: 0.08);
+      cardBorder = Colors.white.withValues(alpha: 0.12);
+      badgeBg = Colors.white.withValues(alpha: 0.16);
+      badgeText = Colors.white;
+      iconColor = Colors.white;
+    }
+
+    return Container(
+      width: _maxWidth,
+      decoration: BoxDecoration(
+        color: cardBg,
+        border: Border.all(color: cardBorder, width: 1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+            final isError = message.uploadStatus == MessageUploadStatus.error;
+            if (!isUploading && !isError && message.content.isNotEmpty) {
+              final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
+              String type = 'document';
+              if (extStr == 'pdf') type = 'pdf';
+              
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => MediaGalleryScreen(
+                    url: message.previewUrl ?? message.content,
+                    originalUrl: message.content,
+                    type: type,
+                    fileName: message.fileName,
+                    senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                    userRole: userRole,
+                  ),
                 ),
-                Text(
-                  ext.toUpperCase(),
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+              );
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isMe ? Colors.white.withValues(alpha: 0.15) : iconColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(fileIcon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        message.fileName ?? 'Document',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isMe ? Colors.white : Colors.blueGrey.shade900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              ext.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w900,
+                                color: badgeText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Tap to preview',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isMe ? Colors.white.withValues(alpha: 0.6) : Colors.blueGrey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.remove_red_eye_outlined,
+                  color: isMe ? Colors.white.withValues(alpha: 0.5) : Colors.blueGrey.shade400,
+                  size: 18,
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1852,12 +2175,12 @@ class _GroupBubble extends StatelessWidget {
             style: TextStyle(fontSize: 10, color: subColor),
           ),
           if (isMe) ...[
-            const SizedBox(width: 3),
+            const SizedBox(width: 4),
             Icon(
-              message.isRead ? Icons.done_all : Icons.done,
-              size: 13,
+              Icons.done_all,
+              size: 16,
               color: message.isRead
-                  ? const Color(0xFF00A884)
+                  ? const Color(0xFF34B7F1)
                   : subColor,
             ),
           ],
