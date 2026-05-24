@@ -24,9 +24,27 @@ class LocalDatabaseService {
     String path = join(documentsDirectory.path, 'chat_database.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      try {
+        await db.execute('ALTER TABLE messages ADD COLUMN previewUrl TEXT');
+      } catch (e) {
+        // Ignore if column already exists
+      }
+      try {
+        await db.execute('ALTER TABLE messages ADD COLUMN uploadProgress REAL');
+        await db.execute('ALTER TABLE messages ADD COLUMN uploadStatus TEXT');
+        await db.execute('ALTER TABLE messages ADD COLUMN localPath TEXT');
+      } catch (e) {
+        // Ignore if columns already exist
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
