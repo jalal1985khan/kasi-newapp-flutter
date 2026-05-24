@@ -1569,6 +1569,15 @@ class _GroupChatBubble extends StatelessWidget {
       case 'video':
         Widget img;
         String displayUrl = message.previewUrl ?? message.content;
+        
+        String _getThumbnailUrl(String url) {
+          if (url.isEmpty) return url;
+          if (url.contains('cloudinary.com/') || url.contains('thumb_') || url.contains('wsrv.nl')) return url;
+          if (url.startsWith('http')) {
+            return 'https://wsrv.nl/?url=${Uri.encodeComponent(url)}&w=400&q=60&output=jpg';
+          }
+          return url;
+        }
 
         if (displayUrl.contains('res.cloudinary.com')) {
           if (message.type == 'video') {
@@ -1597,7 +1606,7 @@ class _GroupChatBubble extends StatelessWidget {
           }
         } else {
           img = Image.network(
-            AuthService().getFullUrl(displayUrl) ?? displayUrl,
+            _getThumbnailUrl(AuthService().getFullUrl(displayUrl) ?? displayUrl),
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,
@@ -1891,8 +1900,8 @@ class _GroupChatBubble extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white, size: 30),
               onPressed: () {
-                if (message.localPath != null) {
-                  _uploadAndSend(message.localPath!, message.caption ?? '', message.type, id: message.id);
+                if (message.localPath != null && onUploadRetry != null) {
+                  onUploadRetry!(message.localPath!, message.caption ?? '', message.type, message.id);
                 }
               },
             ),

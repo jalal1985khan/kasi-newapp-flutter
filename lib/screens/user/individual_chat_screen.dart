@@ -1654,6 +1654,15 @@ class _ChatBubble extends StatelessWidget {
         bool isUnplayableVideo = message.type == 'video' && RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false).hasMatch(message.previewUrl ?? message.content);
         bool isLocalUpload = message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'));
 
+        String _getThumbnailUrl(String url) {
+          if (url.isEmpty) return url;
+          if (url.contains('cloudinary.com/') || url.contains('thumb_') || url.contains('wsrv.nl')) return url;
+          if (url.startsWith('http')) {
+            return 'https://wsrv.nl/?url=${Uri.encodeComponent(url)}&w=400&q=60&output=jpg';
+          }
+          return url;
+        }
+
         if (isLocalUpload || isUnplayableVideo) {
           if (message.type == 'video') {
             // Local or unplayable video cannot be decoded as an image by Image.file / Image.network
@@ -1681,7 +1690,7 @@ class _ChatBubble extends StatelessWidget {
             }
           }
           img = Image.network(
-            AuthService().getFullUrl(displayUrl) ?? displayUrl,
+            _getThumbnailUrl(AuthService().getFullUrl(displayUrl) ?? displayUrl),
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,

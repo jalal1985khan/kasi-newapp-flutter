@@ -145,6 +145,15 @@ class ChatMessage {
     );
   }
 
+  static MessageUploadStatus _parseUploadStatus(dynamic status) {
+    if (status == null) return MessageUploadStatus.success;
+    final str = status.toString();
+    for (var val in MessageUploadStatus.values) {
+      if (val.toString() == str) return val;
+    }
+    return MessageUploadStatus.success;
+  }
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
       id: json['id'] ?? json['_id'] ?? '',
@@ -155,13 +164,13 @@ class ChatMessage {
       type: json['type'] ?? 'text',
       content: json['content'] ?? '',
       fileName: json['fileName'],
-      fileSize: json['fileSize'],
-      duration: json['duration'],
-      isRead: json['isRead'] ?? false,
-      readAt: json['readAt'] != null ? DateTime.parse(json['readAt']) : null,
-      deletedFor: json['deletedFor'] ?? [],
+      fileSize: (json['fileSize'] as num?)?.toInt(),
+      duration: (json['duration'] as num?)?.toInt(),
+      isRead: json['isRead'] == true,
+      readAt: json['readAt'] != null ? DateTime.tryParse(json['readAt'].toString()) : null,
+      deletedFor: List<String>.from(json['deletedFor'] ?? []),
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
           : DateTime.now(),
       senderName: json['senderName'],
       senderRole: json['senderRole'],
@@ -223,10 +232,10 @@ class ChatMessage {
       fileName: map['fileName'],
       fileSize: map['fileSize'],
       duration: map['duration'],
-      isRead: map['isRead'] == 1,
-      readAt: map['readAt'] != null ? DateTime.parse(map['readAt']) : null,
+      isRead: map['isRead'] == 1 || map['isRead'] == true,
+      readAt: map['readAt'] != null ? DateTime.tryParse(map['readAt'].toString()) : null,
       deletedFor: [], // Parsed back empty or ignore
-      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : DateTime.now(),
+      createdAt: map['createdAt'] != null ? (DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now()) : DateTime.now(),
       senderName: map['senderName'],
       senderRole: map['senderRole'],
       reaction: map['reaction'],
@@ -236,10 +245,8 @@ class ChatMessage {
       isForwarded: map['isForwarded'] == 1,
       caption: map['caption'],
       senderProfileImage: map['senderProfileImage'],
-      uploadProgress: map['uploadProgress'] ?? 1.0,
-      uploadStatus: map['uploadStatus'] != null 
-          ? MessageUploadStatus.values.firstWhere((e) => e.toString() == map['uploadStatus'], orElse: () => MessageUploadStatus.success)
-          : MessageUploadStatus.success,
+      uploadProgress: (map['uploadProgress'] as num?)?.toDouble() ?? 1.0,
+      uploadStatus: _parseUploadStatus(map['uploadStatus']),
       localPath: map['localPath'],
       previewUrl: map['previewUrl'],
     );
