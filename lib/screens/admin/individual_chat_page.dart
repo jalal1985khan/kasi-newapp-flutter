@@ -18,6 +18,7 @@ import '../special_widgets/premium_recording_indicator.dart';
 import 'admin_common_widgets/admin_layout.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/chat/chat_service.dart';
+import '../../services/chat/local_database_service.dart';
 import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
 import 'package:intl/intl.dart';
@@ -326,7 +327,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           } else {
             // New message, insert at top
             _messages.insert(0, message);
-            debugPrint('✅ Message Displayed: ${message.content}');
+            LocalDatabaseService().insertMessage(message);
+            debugPrint('✅ Message Displayed & Cached: ${message.content}');
           }
         });
         _socketService.emit('message:read', {
@@ -355,11 +357,30 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     _userRole = user?['role'];
 
     if (_activeConversationId != null) {
+      // 1. INSTANT LOCAL LOAD
+      final localDb = LocalDatabaseService();
+      final localMessages = await localDb.getMessagesByConversation(_activeConversationId!);
+      if (mounted && localMessages.isNotEmpty) {
+        setState(() {
+          // localMessages is already newest-first
+          _messages = localMessages;
+          _isLoading = false;
+        });
+      }
+
+      // 2. BACKGROUND NETWORK SYNC
       try {
         final response = await _chatService.getMessages(_activeConversationId!);
+        
+        // Save new messages to SQLite
+        await localDb.insertMessages(response.messages);
+        
+        // Reload fresh merged data
+        final mergedMessages = await localDb.getMessagesByConversation(_activeConversationId!);
+        
         if (mounted) {
           setState(() {
-            _messages = response.messages.reversed.toList();
+            _messages = mergedMessages;
             _hasMore = response.hasMore ?? false;
             _isLoading = false;
           });
@@ -369,9 +390,8 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error loading messages: $e')));
+          // Silent failure: Just log it. The UI already shows the offline cached messages from SQLite.
+          debugPrint('⚠️ [IndividualChat] Background sync failed (offline?): $e');
         }
       }
     } else {
@@ -467,6 +487,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
           _messages[idx] = optimisticMsg;
         } else {
           _messages.insert(0, optimisticMsg);
+          LocalDatabaseService().insertMessage(optimisticMsg);
         }
         if (type == 'text' && content == null) _messageController.clear();
         _replyingToMessage = null;
@@ -512,6 +533,18 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
   }
 
   Future<void> _uploadAndSend(String path, String caption, String type, String tempId) async {
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: MessageUploadStatus.uploading,
+            uploadProgress: 0.0,
+          );
+        }
+      });
+    }
+
     try {
       final uploadRes = await _chatService.uploadMedia(
         path,

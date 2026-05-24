@@ -12,6 +12,7 @@ import '../user/common_widgets/user_layout.dart';
 import '../../services/chat/socket_service.dart';
 import '../../services/chat/chat_service.dart';
 import '../../services/chat/group_chat_service.dart';
+import '../../services/chat/local_database_service.dart';
 import '../special_widgets/premium_recording_indicator.dart';
 import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
@@ -254,7 +255,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final message = ChatMessage.fromJson({
         ...data,
         'createdAt': data['createdAt'] ?? DateTime.now().toIso8601String(),
-      });
+      }).copyWith(conversationId: widget.groupId);
 
       setState(() {
         // Immediately clear typing indicator for the sender
@@ -284,6 +285,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           );
         } else {
           _messages.insert(0, message);
+          LocalDatabaseService().insertMessage(message);
         }
       });
       socket.emit('group:message:read', {'groupId': widget.groupId});
@@ -304,6 +306,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
     _currentUserId = user?['id'] ?? user?['_id'];
     _userRole = user?['role'];
 
+    // 1. INSTANT LOCAL LOAD
+    final localDb = LocalDatabaseService();
+    final localMessages = await localDb.getMessagesByConversation(widget.groupId);
+    if (mounted && localMessages.isNotEmpty) {
+      setState(() {
+        _messages = localMessages;
+        _isLoading = false;
+      });
+    }
+
+    // 2. BACKGROUND NETWORK SYNC
     try {
       final res = await _groupChatService.getGroupMessages(widget.groupId);
       debugPrint('📡 [GroupChat] API response for group ${widget.groupId}: success=${res['success']}, error=${res['error']}');
@@ -311,14 +324,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (res['success'] == true) {
           final List msgsData = res['messages'] ?? [];
           final groupData = res['group'];
-          debugPrint('📩 [GroupChat] Loaded ${msgsData.length} messages');
+          
+          final fetchedMessages = msgsData
+              .map((m) {
+                final msg = ChatMessage.fromJson(m);
+                // The API might not return 'conversationId' for group messages, 
+                // so we MUST explicitly set it to groupId to allow SQLite to query it properly!
+                return msg.copyWith(conversationId: widget.groupId);
+              })
+              .toList();
+              
+          // Save new messages to SQLite
+          await localDb.insertMessages(fetchedMessages);
+          
+          // Reload fresh merged data
+          final mergedMessages = await localDb.getMessagesByConversation(widget.groupId);
+
+          debugPrint('📩 [GroupChat] Merged ${mergedMessages.length} messages from SQLite & API');
           setState(() {
             if (groupData != null) _groupName = groupData['name'];
-            _messages = msgsData
-                .map((m) => ChatMessage.fromJson(m))
-                .toList()
-                .reversed
-                .toList();
+            _messages = mergedMessages;
             _isLoading = false;
           });
           socket.emit('group:message:read', {'groupId': widget.groupId});
@@ -388,6 +413,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
         _messages[idx] = optimisticMsg;
       } else {
         _messages.insert(0, optimisticMsg);
+        LocalDatabaseService().insertMessage(optimisticMsg);
       }
       if (type == 'text' && content == null) _messageController.clear();
       _replyingToMessage = null;
@@ -420,6 +446,19 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _uploadAndSend(String path, String caption, String type, {String? id}) async {
     final tempId = id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}';
+    
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: MessageUploadStatus.uploading,
+            uploadProgress: 0.0,
+          );
+        }
+      });
+    }
+
     try {
       final uploadRes = await _chatService.uploadMedia(
         path,
@@ -800,10 +839,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         currentIndex: 3,
         titleWidget: _buildTitleWidget(),
         leading: _buildLeading(),
-        onRefresh: _loadData,
         extraActions: _buildExtraActions(),
         backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111B21) : const Color(0xFFE5DDD5),
         foregroundColor: Colors.white,
+        showBottomNav: false,  // hide nav bar — chat input occupies the bottom
         body: _buildBody(),
       );
     } else {
@@ -811,7 +850,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
         currentIndex: 1,
         titleWidget: _buildTitleWidget(),
         leading: _buildLeading(),
-        onRefresh: _loadData,
         extraActions: _buildExtraActions(),
         backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111B21) : const Color(0xFFE5DDD5),
         foregroundColor: Colors.white,
@@ -977,56 +1015,58 @@ class _GroupChatPageState extends State<GroupChatPage> {
             Expanded(
               child: Stack(
                 children: [
-                  (_isLoading && _messages.isEmpty)
-                      ? _buildSkeletonLoading()
-                      : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(10),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      reverse: true,
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _messages[index];
-                        final isMe = msg.senderId == _currentUserId;
+                  if (_isLoading && _messages.isEmpty)
+                    _buildSkeletonLoading()
+                  else
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      color: const Color(0xFF00A884),
+                      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF202C33) : Colors.white,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(10),
+                        reverse: true,
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _messages[index];
+                          final isMe = msg.senderId == _currentUserId;
 
-                        bool showDateSeparator = false;
-                        if (index == _messages.length - 1) {
-                          showDateSeparator = true;
-                        } else {
-                          final newerMsg = _messages[index + 1];
-                          if (!_isSameDay(msg.createdAt, newerMsg.createdAt)) {
+                          bool showDateSeparator = false;
+                          if (index == _messages.length - 1) {
                             showDateSeparator = true;
+                          } else {
+                            final newerMsg = _messages[index + 1];
+                            if (!_isSameDay(msg.createdAt, newerMsg.createdAt)) {
+                              showDateSeparator = true;
+                            }
                           }
-                        }
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (showDateSeparator)
-                              _buildDateSeparator(msg.createdAt),
-                            GestureDetector(
-                              onLongPress: isMe
-                                  ? () => _deleteMessage(msg.id)
-                                  : null,
-                              child: _GroupChatBubble(
-                                key: _messageKeys[msg.id] ?? (_messageKeys[msg.id] = GlobalKey()),
-                                message: msg,
-                                isMe: isMe,
-                                onLongPress: (msg) => _showMessageOptions(msg),
-                                userName: msg.senderName ?? 'User',
-                                userRole: msg.senderRole,
-                                isHighlighted: _highlightedMessageId == msg.id,
-                                onReplyTap: _scrollToMessage,
-                                onUploadRetry: (path, caption, type, id) => _uploadAndSend(path, caption, type, id: id),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showDateSeparator)
+                                _buildDateSeparator(msg.createdAt),
+                              GestureDetector(
+                                onLongPress: isMe
+                                    ? () => _deleteMessage(msg.id)
+                                    : null,
+                                child: _GroupChatBubble(
+                                  key: _messageKeys[msg.id] ?? (_messageKeys[msg.id] = GlobalKey()),
+                                  message: msg,
+                                  isMe: isMe,
+                                  onLongPress: (msg) => _showMessageOptions(msg),
+                                  userName: msg.senderName ?? 'User',
+                                  userRole: msg.senderRole,
+                                  isHighlighted: _highlightedMessageId == msg.id,
+                                  onReplyTap: _scrollToMessage,
+                                  onUploadRetry: (path, caption, type, id) => _uploadAndSend(path, caption, type, id: id),
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
                   if (_showScrollToBottom)
                     Positioned(
                       right: 16,
@@ -1521,6 +1561,9 @@ class _GroupChatBubble extends StatelessWidget {
   Widget _buildContent(BuildContext context, Color textColor) {
     Widget contentWidget;
     const double standardWidth = 250.0;
+    final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+    final isError = message.uploadStatus == MessageUploadStatus.error;
+
     switch (message.type) {
       case 'image':
       case 'video':
@@ -1826,6 +1869,35 @@ class _GroupChatBubble extends StatelessWidget {
         break;
       default:
         contentWidget = Text(message.content, style: TextStyle(fontSize: 16, color: textColor));
+    }
+
+    if (isUploading || isError) {
+      contentWidget = Stack(
+        alignment: Alignment.center,
+        children: [
+          Opacity(opacity: 0.7, child: contentWidget),
+          if (isUploading)
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                value: message.uploadProgress,
+                strokeWidth: 3,
+                backgroundColor: Colors.white24,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          if (isError)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 30),
+              onPressed: () {
+                if (message.localPath != null) {
+                  _uploadAndSend(message.localPath!, message.caption ?? '', message.type, id: message.id);
+                }
+              },
+            ),
+        ],
+      );
     }
 
     if (message.caption != null && message.caption!.isNotEmpty) {

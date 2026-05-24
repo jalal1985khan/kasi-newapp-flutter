@@ -437,6 +437,18 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   }
 
   Future<void> _uploadAndSend(String path, String caption, String type, String tempId) async {
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            uploadStatus: MessageUploadStatus.uploading,
+            uploadProgress: 0.0,
+          );
+        }
+      });
+    }
+
     try {
       final uploadRes = await _chatService.uploadMedia(
         path,

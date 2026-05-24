@@ -177,4 +177,71 @@ class ChatMessage {
       uploadStatus: MessageUploadStatus.success,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'conversationId': conversationId,
+      'tenantId': tenantId,
+      'senderId': senderId,
+      'receiverId': receiverId,
+      'type': type,
+      'content': content,
+      'fileName': fileName,
+      'fileSize': fileSize,
+      'duration': duration,
+      'isRead': isRead ? 1 : 0,
+      'readAt': readAt?.toIso8601String(),
+      // 'deletedFor' is ignored or stored as string array
+      'deletedFor': deletedFor.toString(),
+      'createdAt': createdAt.toIso8601String(),
+      'senderName': senderName,
+      'senderRole': senderRole,
+      'reaction': reaction,
+      'replyToContent': replyToContent,
+      'replyToSenderName': replyToSenderName,
+      'replyTo': replyTo,
+      'isForwarded': isForwarded ? 1 : 0,
+      'caption': caption,
+      'senderProfileImage': senderProfileImage,
+      'uploadProgress': uploadProgress,
+      'uploadStatus': uploadStatus.toString(),
+      'localPath': localPath,
+      'previewUrl': previewUrl,
+    };
+  }
+
+  factory ChatMessage.fromMap(Map<String, dynamic> map) {
+    return ChatMessage(
+      id: map['id'] ?? '',
+      conversationId: map['conversationId'] ?? '',
+      tenantId: map['tenantId'],
+      senderId: map['senderId'] ?? '',
+      receiverId: map['receiverId'] ?? '',
+      type: map['type'] ?? 'text',
+      content: map['content'] ?? '',
+      fileName: map['fileName'],
+      fileSize: map['fileSize'],
+      duration: map['duration'],
+      isRead: map['isRead'] == 1,
+      readAt: map['readAt'] != null ? DateTime.parse(map['readAt']) : null,
+      deletedFor: [], // Parsed back empty or ignore
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : DateTime.now(),
+      senderName: map['senderName'],
+      senderRole: map['senderRole'],
+      reaction: map['reaction'],
+      replyToContent: map['replyToContent'],
+      replyToSenderName: map['replyToSenderName'],
+      replyTo: map['replyTo'],
+      isForwarded: map['isForwarded'] == 1,
+      caption: map['caption'],
+      senderProfileImage: map['senderProfileImage'],
+      uploadProgress: map['uploadProgress'] ?? 1.0,
+      uploadStatus: map['uploadStatus'] != null 
+          ? MessageUploadStatus.values.firstWhere((e) => e.toString() == map['uploadStatus'], orElse: () => MessageUploadStatus.success)
+          : MessageUploadStatus.success,
+      localPath: map['localPath'],
+      previewUrl: map['previewUrl'],
+    );
+  }
 }
