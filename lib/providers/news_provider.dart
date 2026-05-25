@@ -208,12 +208,13 @@ class NewsProvider extends ChangeNotifier {
     return list.take(5).toList();
   }
 
-  /// Section 3: 6th article of each category (index 5)
+  /// Section 3: 6th article of each category (index 5) or fallback to last article if fewer than 6
   List<Map<String, dynamic>> get section3Items {
     return AppConstants.categories
         .map((cat) {
           final list = categoryNews[cat['key']!] ?? [];
-          return {'category': cat, 'article': list.length > 5 ? list[5] : null};
+          final article = list.length > 5 ? list[5] : (list.isNotEmpty ? list.last : null);
+          return {'category': cat, 'article': article};
         })
         .where((item) => item['article'] != null)
         .toList();
