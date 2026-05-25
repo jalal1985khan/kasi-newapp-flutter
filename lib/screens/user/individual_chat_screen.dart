@@ -1007,67 +1007,71 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     final Color inputBg = isDark ? const Color(0xFF202C33) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_replyingToMessage != null) _buildReplyPreview(),
-          _showPreview
-              ? _buildVoicePreview(isDark, waTeal, textColor)
-              : Row(
-                  children: [
-                    _isRecording
-                        ? Expanded(
-                            child: PremiumRecordingIndicator(
-                              duration: Duration(seconds: _recordDuration.toInt()),
-                              onCancel: () {
-                                _recordTimer?.cancel();
-                                _audioRecorder.stop();
-                                setState(() => _isRecording = false);
-                              },
-                              onStop: _stopRecording,
-                            ),
-                          )
-                        : Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: inputBg,
-                                borderRadius: BorderRadius.circular(25),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 5,
-                                  ),
-                                ],
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_replyingToMessage != null) _buildReplyPreview(),
+            _showPreview
+                ? _buildVoicePreview(isDark, waTeal, textColor)
+                : Row(
+                    children: [
+                      _isRecording
+                          ? Expanded(
+                              child: PremiumRecordingIndicator(
+                                duration: Duration(seconds: _recordDuration.toInt()),
+                                onCancel: () {
+                                  _recordTimer?.cancel();
+                                  _audioRecorder.stop();
+                                  setState(() => _isRecording = false);
+                                },
+                                onStop: _stopRecording,
                               ),
-                              child: _buildTextInput(textColor),
+                            )
+                          : Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: inputBg,
+                                  borderRadius: BorderRadius.circular(25),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 5,
+                                    ),
+                                  ],
+                                ),
+                                child: _buildTextInput(textColor),
+                              ),
                             ),
-                          ),
-                    if (!_isRecording) ...[
-                      const SizedBox(width: 8),
-                      SoftTouchWrapper(
-                        onTap: () {
-                          if (_messageController.text.isNotEmpty) {
-                            _sendMessage();
-                          } else {
-                            _startRecording();
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
-                          child: Icon(
-                            _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
-                            color: Colors.white,
-                            size: 24,
+                      if (!_isRecording) ...[
+                        const SizedBox(width: 8),
+                        SoftTouchWrapper(
+                          onTap: () {
+                            if (_messageController.text.isNotEmpty) {
+                              _sendMessage();
+                            } else {
+                              _startRecording();
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: const BoxDecoration(color: waTeal, shape: BoxShape.circle),
+                            child: Icon(
+                              _messageController.text.isNotEmpty ? Icons.send : Icons.mic,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-        ],
+                  ),
+          ],
+        ),
       ),
     );
   }

@@ -1360,8 +1360,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final Color inputBg = isDark ? const Color(0xFF202C33) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1466,7 +1469,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
         ],
       ),
-    );
+    ),);
   }
   Widget _buildReplyPreview(bool isDark) {
     return Container(

@@ -1303,9 +1303,12 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white.withOpacity(0.6) : Colors.black54;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-      decoration: const BoxDecoration(color: Colors.transparent),
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+        decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1487,7 +1490,7 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
             ),
         ],
       ),
-    );
+    ),);
   }
 
   String _formatDuration(Duration duration) {
