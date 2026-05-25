@@ -10,6 +10,8 @@ import 'chat/socket_service.dart';
 import '../main.dart';
 import '../screens/general_pages/splash_screen.dart';
 import 'package:flutter/material.dart';
+import '../screens/special_widgets/call_overlay.dart';
+import '../screens/special_widgets/group_call_overlay.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -146,6 +148,16 @@ class AuthService {
       // Log error but proceed to clear local data anyway
       print('Logout API error: $e');
     } finally {
+      // Dismiss any active call overlays to disconnect active Twilio rooms
+      try {
+        CallOverlayManager.hide();
+        IncomingCallOverlayManager.hide();
+        GroupCallOverlayManager.hide();
+        IncomingGroupCallOverlayManager.hide();
+      } catch (e) {
+        print('Error dismissing call overlays on logout: $e');
+      }
+
       // Disconnect socket
       SocketService().disconnect();
 

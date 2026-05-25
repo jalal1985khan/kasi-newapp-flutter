@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../services/api_constants.dart';
 
 class AppConstants {
-  static const String apiKey = '4565b267d8cf4587817a494339395f0f';
-  static const String baseUrl = 'https://newsapi.org/v2';
+  static const String apiKey = 'dummy_key_backend_will_use_env';
+  static const String baseUrl = '${ApiConstants.baseUrl}api/flutter/news';
   static const String country = 'us';
 
   // The 5 categories
