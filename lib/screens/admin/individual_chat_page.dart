@@ -2562,12 +2562,16 @@ class _ChatBubble extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'Tap to preview',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade400,
-                                  fontWeight: FontWeight.w500,
+                              Expanded(
+                                child: Text(
+                                  'Tap to preview',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade400,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                             ],
