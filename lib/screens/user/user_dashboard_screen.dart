@@ -558,12 +558,16 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
             ),
             title: Text(
               widget.record.accountName ?? 'Record #${widget.index + 1}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: widget.textColor),
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '${DateFormat('dd MMM').format(DateTime.parse(widget.record.updatedAt))} • ${widget.record.transactionStatus ?? "Processed"}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: widget.subTextColor, fontSize: 13),
               ),
             ),
