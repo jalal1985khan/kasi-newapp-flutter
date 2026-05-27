@@ -10,6 +10,7 @@ import '../auth_service.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdfx/pdfx.dart';
 
 class ChatService {
   final _dio = DioClient().dio;
@@ -124,9 +125,10 @@ class ChatService {
       }
 
       String? thumbSpacesUrl;
+      final bool isPdf = fileName.toLowerCase().endsWith('.pdf');
 
       // 🖼️ Step 0: Generate and Upload Thumbnail locally (avoids blank previews)
-      if (isImage || isVideo) {
+      if (isImage || isVideo || isPdf) {
         try {
           File? thumbFile;
           if (isImage) {
@@ -154,6 +156,24 @@ class ChatService {
             if (thumbPath != null) {
               thumbFile = File(thumbPath);
             }
+          } else if (isPdf) {
+            // Generate PDF thumbnail using pdfx
+            final document = await PdfDocument.openFile(filePath);
+            final page = await document.getPage(1);
+            final pageImage = await page.render(
+              width: page.width * 2,
+              height: page.height * 2,
+              format: PdfPageImageFormat.jpeg,
+            );
+            await page.close();
+            await document.close();
+
+            if (pageImage != null) {
+              final tempDir = await getTemporaryDirectory();
+              final targetPath = '${tempDir.path}/thumb_pdf_${DateTime.now().millisecondsSinceEpoch}.jpg';
+              thumbFile = File(targetPath);
+              await thumbFile.writeAsBytes(pageImage.bytes);
+            }
           }
 
           if (thumbFile != null) {
@@ -174,8 +194,8 @@ class ChatService {
                 thumbPutUrl,
                 data: thumbBytes,
                 options: Options(
+                  contentType: 'image/jpeg',
                   headers: {
-                    Headers.contentTypeHeader: 'image/jpeg',
                     Headers.contentLengthHeader: thumbBytes.length.toString(),
                     'x-amz-acl': 'public-read',
                   },
@@ -215,8 +235,8 @@ class ChatService {
         putUrl,
         data: fileBytes,
         options: Options(
+          contentType: mimeType,
           headers: {
-            Headers.contentTypeHeader: mimeType,
             Headers.contentLengthHeader: fileBytes.length.toString(),
             'x-amz-acl': 'public-read',
           },

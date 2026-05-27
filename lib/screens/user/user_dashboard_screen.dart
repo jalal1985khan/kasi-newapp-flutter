@@ -22,7 +22,8 @@ class UserDashboardScreen extends StatefulWidget {
   State<UserDashboardScreen> createState() => _UserDashboardScreenState();
 }
 
-class _UserDashboardScreenState extends State<UserDashboardScreen> {
+class _UserDashboardScreenState extends State<UserDashboardScreen>
+    with WidgetsBindingObserver {
   final EmployeeService _employeeService = EmployeeService();
   final ScrollController _scrollController = ScrollController();
   
@@ -42,17 +43,37 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   bool _isDownloading = false;
   final Map<int, GlobalKey> _recordKeys = {};
 
+  // Tracks when data was last loaded to avoid redundant refreshes
+  DateTime? _lastLoadedAt;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadInitialData();
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Auto-refresh when the app comes back to the foreground.
+  /// This covers the case where an admin uploaded a new Excel batch
+  /// while the employee had the app open in the background.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      final shouldRefresh = _lastLoadedAt == null ||
+          now.difference(_lastLoadedAt!) > const Duration(minutes: 2);
+      if (shouldRefresh) {
+        _loadInitialData();
+      }
+    }
   }
 
   void _onScroll() {
@@ -82,6 +103,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           _totalValue = response.totalValue;
           _isLoading = false;
           _hasMore = response.records.length == _limit;
+          _lastLoadedAt = DateTime.now();
         });
       }
     } catch (e) {
@@ -100,6 +122,11 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           _records.addAll(response.records);
           _isFetchingMore = false;
           _hasMore = response.records.length == _limit;
+          // Always sync totals — backend returns the authoritative
+          // aggregate regardless of which page is requested.
+          _totalCredits = response.totalCredits;
+          _totalDebits  = response.totalDebits;
+          _totalValue   = response.totalValue;
         });
       }
     } catch (e) {

@@ -582,7 +582,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   Future<void> _initializePlayer() async {
-    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    if (widget.url.startsWith('http') || widget.url.startsWith('https')) {
+      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    } else {
+      _videoPlayerController = VideoPlayerController.file(File(widget.url));
+    }
     await _videoPlayerController.initialize();
     
     if (widget.inline) {

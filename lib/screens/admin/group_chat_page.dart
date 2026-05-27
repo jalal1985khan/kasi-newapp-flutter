@@ -12,6 +12,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:path/path.dart' as p;
 import 'package:intl/intl.dart';
+import 'package:pdfx/pdfx.dart';
+import 'dart:typed_data';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
@@ -212,9 +215,36 @@ class _GroupChatPageState extends State<GroupChatPage> {
       // Upsert to local DB
       await _db.insertMessages(serverMessages);
 
+      // Re-read merged data from local DB (avoids visual flash from swapping lists)
+      final mergedMessages = await _db.getMessagesByConversation(widget.groupId);
+
       if (mounted) {
+        // Preserve localPath & upload state from in-memory temp messages
+        final tempMessages = <String, ChatMessage>{};
+        for (final m in _messages) {
+          if (m.localPath != null) {
+            tempMessages[m.id] = m;
+          }
+        }
+        for (int i = 0; i < mergedMessages.length; i++) {
+          final existing = tempMessages[mergedMessages[i].id];
+          if (existing != null) {
+            mergedMessages[i] = mergedMessages[i].copyWith(
+              localPath: existing.localPath,
+              uploadStatus: existing.uploadStatus,
+              uploadProgress: existing.uploadProgress,
+            );
+          }
+        }
+        // Re-add any temp_ messages that haven't been confirmed yet
+        for (final m in _messages) {
+          if (m.id.startsWith('temp_') && !mergedMessages.any((merged) => merged.id == m.id)) {
+            mergedMessages.insert(0, m);
+          }
+        }
+
         setState(() {
-          _messages = serverMessages;
+          _messages = mergedMessages;
           _hasMore = res['hasMore'] == true;
           _isLoading = false;
         });
@@ -290,6 +320,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (!mounted) return;
       final incoming = _groupMessageFromJson(data as Map<String, dynamic>);
 
+      ChatMessage finalMsg = incoming;
+
       // Skip my own messages already added optimistically
       if (incoming.senderId == _currentUserId) {
         final tempIdx = _messages.indexWhere((m) {
@@ -302,7 +334,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
         if (mounted) {
           setState(() {
             if (tempIdx != -1) {
-              _messages[tempIdx] = incoming;
+              finalMsg = incoming.copyWith(
+                localPath: incoming.localPath ?? _messages[tempIdx].localPath,
+                previewUrl: incoming.previewUrl ?? _messages[tempIdx].previewUrl,
+              );
+              _messages[tempIdx] = finalMsg;
             } else {
               _messages.insert(0, incoming);
             }
@@ -314,7 +350,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           setState(() => _messages.insert(0, incoming));
         }
       }
-      _db.insertMessage(incoming);
+      _db.insertMessage(finalMsg);
       _scrollToBottomIfNear();
     }
 
@@ -438,18 +474,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
       replyToSenderName: replyToSenderName,
     );
 
-    setState(() {
+    if (mounted) {
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == tempId);
+        if (idx != -1) {
+          _messages[idx] = optimistic;
+        } else {
+          _messages.insert(0, optimistic);
+          _db.insertMessage(optimistic);
+        }
+        _replyingTo = null;
+      });
+      _scrollToBottom();
+    } else {
       final idx = _messages.indexWhere((m) => m.id == tempId);
-      if (idx != -1) {
-        _messages[idx] = optimistic;
-      } else {
-        _messages.insert(0, optimistic);
+      if (idx == -1) {
         _db.insertMessage(optimistic);
       }
-      _replyingTo = null;
-    });
-
-    _scrollToBottom();
+    }
 
     if (uploadStatus == MessageUploadStatus.uploading) return;
 
@@ -1003,15 +1045,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
               children: [
                 // Wallpaper
                 Positioned.fill(
-                  child: Image.network(
+                  child: Image.asset(
                     isDark
-                        ? 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/light-bg-theme.png'
-                        : 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/transparent-bg.png',
+                        ? 'assets/images/chat_bg_dark.png'
+                        : 'assets/images/chat_bg_light.png',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                        color: isDark
-                            ? const Color(0xFF0B141B)
-                            : const Color(0xFFE5DDD5)),
                   ),
                 ),
                 // Messages
@@ -1843,18 +1881,21 @@ class _GroupBubble extends StatelessWidget {
   }
 
   Widget _buildImageBubble(BuildContext ctx, bool isDark) {
-    final isLocalUpload = message.localPath != null &&
-        (message.content.isEmpty || !message.content.startsWith('http'));
+    String? cleanedPath;
+    final bool isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+    bool isLocalUpload = false;
+    if (message.localPath != null) {
+      cleanedPath = cleanLocalPath(message.localPath!);
+      isLocalUpload = File(cleanedPath).existsSync(); // Always prefer local file
+    }
 
     return GestureDetector(
-      onTap: isLocalUpload
-          ? null
-          : () => Navigator.push(
+      onTap: () => Navigator.push(
                 ctx,
                 MaterialPageRoute(
                   builder: (_) => MediaGalleryScreen(
-                    url: message.previewUrl ?? message.content,
-                    originalUrl: message.content,
+                    url: isLocalUpload ? cleanedPath! : (message.previewUrl ?? message.content),
+                    originalUrl: isLocalUpload ? cleanedPath! : message.content,
                     type: 'image',
                     fileName: message.fileName,
                     senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
@@ -1865,29 +1906,34 @@ class _GroupBubble extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: isLocalUpload
-            ? Image.file(File(message.localPath!),
-                width: _maxWidth, height: 180, fit: BoxFit.cover)
-            : Image.network(
-                _thumbnailUrl(AuthService().getFullUrl(
-                        message.previewUrl ?? message.content) ??
-                    (message.previewUrl ?? message.content)),
+            ? HighlyResilientImageWidget(
+                path: cleanedPath!,
+                isLocal: true,
                 width: _maxWidth,
                 height: 180,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                    width: _maxWidth,
-                    height: 180,
-                    color: Colors.black12,
-                    child: const Icon(Icons.broken_image,
-                        color: Colors.grey, size: 40)),
+              )
+            : HighlyResilientImageWidget(
+                path: _thumbnailUrl(AuthService().getFullUrl(
+                        message.previewUrl ?? message.content) ??
+                    (message.previewUrl ?? message.content)),
+                isLocal: false,
+                width: _maxWidth,
+                height: 180,
+                fit: BoxFit.cover,
               ),
       ),
     );
   }
 
   Widget _buildVideoBubble(BuildContext ctx, bool isDark) {
-    final isLocalUpload = message.localPath != null &&
-        (message.content.isEmpty || !message.content.startsWith('http'));
+    String? cleanedPath;
+    final bool isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+    bool isLocalUpload = false;
+    if (message.localPath != null) {
+      cleanedPath = cleanLocalPath(message.localPath!);
+      isLocalUpload = File(cleanedPath).existsSync(); // Always prefer local file
+    }
 
     final previewUrl = message.previewUrl ?? '';
     final thumbUrl = previewUrl.isNotEmpty
@@ -1895,14 +1941,12 @@ class _GroupBubble extends StatelessWidget {
         : '';
 
     return GestureDetector(
-      onTap: isLocalUpload
-          ? null
-          : () => Navigator.push(
+      onTap: () => Navigator.push(
                 ctx,
                 MaterialPageRoute(
                   builder: (_) => MediaGalleryScreen(
-                    url: message.previewUrl ?? message.content,
-                    originalUrl: message.content,
+                    url: isLocalUpload ? cleanedPath! : (message.previewUrl ?? message.content),
+                    originalUrl: isLocalUpload ? cleanedPath! : message.content,
                     type: 'video',
                     fileName: message.fileName,
                     senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
@@ -1912,44 +1956,42 @@ class _GroupBubble extends StatelessWidget {
               ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            isLocalUpload
-                ? Container(
-                    width: _maxWidth,
-                    height: 180,
-                    color: Colors.black26,
-                    child: const Icon(Icons.videocam,
-                        color: Colors.white54, size: 48))
-                : (thumbUrl.isNotEmpty
-                    ? Image.network(thumbUrl,
-                        width: _maxWidth,
-                        height: 180,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                            width: _maxWidth,
-                            height: 180,
-                            color: Colors.black26,
-                            child: const Icon(Icons.videocam,
-                                color: Colors.white54, size: 48)))
-                    : Container(
-                        width: _maxWidth,
-                        height: 180,
-                        color: Colors.black26,
-                        child: const Icon(Icons.videocam,
-                            color: Colors.white54, size: 48))),
-            if (!isLocalUpload)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+        child: isLocalUpload
+            ? LocalVideoThumbnailWidget(
+                localVideoPath: cleanedPath!,
+                width: _maxWidth,
+                height: 180,
+              )
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  thumbUrl.isNotEmpty
+                      ? Image.network(thumbUrl,
+                          width: _maxWidth,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                              width: _maxWidth,
+                              height: 180,
+                              color: Colors.black26,
+                              child: const Icon(Icons.videocam,
+                                  color: Colors.white54, size: 48)))
+                      : Container(
+                          width: _maxWidth,
+                          height: 180,
+                          color: Colors.black26,
+                          child: const Icon(Icons.videocam,
+                              color: Colors.white54, size: 48)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+                  ),
+                ],
               ),
-          ],
-        ),
       ),
     );
   }
@@ -2011,117 +2053,236 @@ class _GroupBubble extends StatelessWidget {
       iconColor = Colors.white;
     }
 
-    return Container(
-      width: _maxWidth,
-      decoration: BoxDecoration(
-        color: cardBg,
-        border: Border.all(color: cardBorder, width: 1),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+    String? cleanedDocPath;
+    final bool isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+    bool isLocalDoc = false;
+    if (message.localPath != null) {
+      cleanedDocPath = cleanLocalPath(message.localPath!);
+      isLocalDoc = File(cleanedDocPath).existsSync(); // Always prefer local file
+    }
+
+    if (ext == 'pdf' && (isLocalDoc || message.previewUrl != null)) {
+      // Render beautiful split PDF card with Cover Page on top!
+      return Container(
+        width: _maxWidth,
+        decoration: BoxDecoration(
+          color: cardBg,
+          border: Border.all(color: cardBorder, width: 1),
           borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
-            final isError = message.uploadStatus == MessageUploadStatus.error;
-            if (!isUploading && !isError && message.content.isNotEmpty) {
-              final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
-              String type = 'document';
-              if (extStr == 'pdf') type = 'pdf';
-              
-              Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                  builder: (_) => MediaGalleryScreen(
-                    url: message.previewUrl ?? message.content,
-                    originalUrl: message.content,
-                    type: type,
-                    fileName: message.fileName,
-                    senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
-                    userRole: userRole,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+              final isError = message.uploadStatus == MessageUploadStatus.error;
+              if (!isUploading && !isError && message.content.isNotEmpty) {
+                Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                    builder: (_) => MediaGalleryScreen(
+                      url: isLocalDoc ? cleanedDocPath! : (message.previewUrl ?? message.content),
+                      originalUrl: isLocalDoc ? cleanedDocPath! : message.content,
+                      type: 'pdf',
+                      fileName: message.fileName,
+                      senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                      userRole: userRole,
+                    ),
                   ),
-                ),
-              );
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
+                );
+              }
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isMe ? Colors.white.withValues(alpha: 0.15) : iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(fileIcon, color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        message.fileName ?? 'Document',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isMe ? Colors.white : Colors.blueGrey.shade900,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: badgeBg,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              ext.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                color: badgeText,
-                                letterSpacing: 0.5,
+                // Top: Page 1 cover preview
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                  child: SizedBox(
+                    height: 140,
+                    child: isLocalDoc
+                        ? LocalPdfThumbnailWidget(localPath: cleanedDocPath!, width: _maxWidth, height: 140)
+                        : Image.network(
+                            AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Container(
+                              color: Colors.red.shade50,
+                              child: const Center(
+                                child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Tap to preview',
+                  ),
+                ),
+                // Bottom: File details row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.white.withOpacity(0.15) : const Color(0xFFE53935).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.picture_as_pdf, color: isMe ? Colors.white : const Color(0xFFE53935), size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              message.fileName ?? 'Document.pdf',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
-                                color: isMe ? Colors.white.withValues(alpha: 0.6) : Colors.blueGrey.shade400,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isMe ? Colors.white : Colors.blueGrey.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'PDF • Tap to view',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade500,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.remove_red_eye_outlined,
+                        color: isMe ? Colors.white.withValues(alpha: 0.5) : Colors.blueGrey.shade400,
+                        size: 16,
                       ),
                     ],
                   ),
-                ),
-                Icon(
-                  Icons.remove_red_eye_outlined,
-                  color: isMe ? Colors.white.withValues(alpha: 0.5) : Colors.blueGrey.shade400,
-                  size: 18,
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Classic card
+      return Container(
+        width: _maxWidth,
+        decoration: BoxDecoration(
+          color: cardBg,
+          border: Border.all(color: cardBorder, width: 1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              final isUploading = message.uploadStatus == MessageUploadStatus.uploading;
+              final isError = message.uploadStatus == MessageUploadStatus.error;
+              if (!isUploading && !isError && message.content.isNotEmpty) {
+                final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
+                String type = 'document';
+                if (extStr == 'pdf') type = 'pdf';
+                
+                Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                    builder: (_) => MediaGalleryScreen(
+                      url: isLocalDoc ? cleanedDocPath! : (message.previewUrl ?? message.content),
+                      originalUrl: isLocalDoc ? cleanedDocPath! : message.content,
+                      type: type,
+                      fileName: message.fileName,
+                      senderName: isMe ? 'You' : (message.senderName ?? 'Member'),
+                      userRole: userRole,
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.white.withValues(alpha: 0.15) : iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(fileIcon, color: iconColor, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          message.fileName ?? 'Document',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isMe ? Colors.white : Colors.blueGrey.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: badgeBg,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                ext.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: badgeText,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tap to preview',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isMe ? Colors.white.withValues(alpha: 0.6) : Colors.blueGrey.shade400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.remove_red_eye_outlined,
+                    color: isMe ? Colors.white.withValues(alpha: 0.5) : Colors.blueGrey.shade400,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildProgressBar(bool isDark) {
@@ -2291,6 +2452,335 @@ class _AudioBubbleState extends State<_AudioBubble> {
           ],
         );
       },
+    );
+  }
+}
+
+String cleanLocalPath(String path) {
+  String decoded = Uri.decodeFull(path);
+  if (decoded.startsWith('file://')) {
+    decoded = decoded.replaceFirst('file://', '');
+  } else if (decoded.startsWith('file:')) {
+    decoded = decoded.replaceFirst('file:', '');
+  }
+  if (!decoded.startsWith('/')) {
+    decoded = '/$decoded';
+  }
+  return decoded;
+}
+
+class LocalPdfThumbnailWidget extends StatefulWidget {
+  final String localPath;
+  final double width;
+  final double height;
+  
+  static final Map<String, Uint8List> _thumbnailCache = {};
+
+  const LocalPdfThumbnailWidget({
+    super.key,
+    required this.localPath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<LocalPdfThumbnailWidget> createState() => _LocalPdfThumbnailWidgetState();
+}
+
+class _LocalPdfThumbnailWidgetState extends State<LocalPdfThumbnailWidget> {
+  Future<Uint8List?>? _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (LocalPdfThumbnailWidget._thumbnailCache.containsKey(widget.localPath)) {
+      _thumbnailFuture = Future.value(LocalPdfThumbnailWidget._thumbnailCache[widget.localPath]);
+    } else {
+      _thumbnailFuture = _generateThumbnail();
+    }
+  }
+
+  Future<Uint8List?> _generateThumbnail() async {
+    try {
+      final document = await PdfDocument.openFile(widget.localPath);
+      final page = await document.getPage(1);
+      final pageImage = await page.render(
+        width: page.width * 2,
+        height: page.height * 2,
+        format: PdfPageImageFormat.jpeg,
+      );
+      await page.close();
+      await document.close();
+      if (pageImage?.bytes != null) {
+        LocalPdfThumbnailWidget._thumbnailCache[widget.localPath] = pageImage!.bytes;
+      }
+      return pageImage?.bytes;
+    } catch (e) {
+      debugPrint('Error generating local PDF thumbnail: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cachedBytes = LocalPdfThumbnailWidget._thumbnailCache[widget.localPath];
+    if (cachedBytes != null) {
+      return Image.memory(
+        cachedBytes,
+        key: ValueKey(widget.localPath),
+        width: widget.width,
+        height: widget.height,
+        fit: BoxFit.cover,
+      );
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+          return Image.memory(
+            snapshot.data!,
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.cover,
+          );
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.red.shade50,
+          child: const Center(
+            child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class LocalVideoThumbnailWidget extends StatefulWidget {
+  final String localVideoPath;
+  final double width;
+  final double height;
+
+  static final Map<String, Uint8List> _thumbnailCache = {};
+
+  const LocalVideoThumbnailWidget({
+    super.key,
+    required this.localVideoPath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<LocalVideoThumbnailWidget> createState() => _LocalVideoThumbnailWidgetState();
+}
+
+class _LocalVideoThumbnailWidgetState extends State<LocalVideoThumbnailWidget> {
+  Future<Uint8List?>? _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (LocalVideoThumbnailWidget._thumbnailCache.containsKey(widget.localVideoPath)) {
+      _thumbnailFuture = Future.value(LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath]);
+    } else {
+      _thumbnailFuture = _generateThumbnail();
+    }
+  }
+
+  Future<Uint8List?> _generateThumbnail() async {
+    try {
+      final thumbPath = await VideoThumbnail.thumbnailFile(
+        video: widget.localVideoPath,
+        thumbnailPath: (await getTemporaryDirectory()).path,
+        imageFormat: ImageFormat.JPEG,
+        maxHeight: 400,
+        quality: 60,
+      );
+      if (thumbPath != null) {
+        final bytes = await File(thumbPath).readAsBytes();
+        LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath] = bytes;
+        return bytes;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error generating local video thumbnail: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cachedBytes = LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath];
+    if (cachedBytes != null) {
+      return Stack(
+        alignment: Alignment.center,
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            cachedBytes,
+            key: ValueKey(widget.localVideoPath),
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.cover,
+          ),
+          const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+        ],
+      );
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+          return Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              Image.memory(
+                snapshot.data!,
+                width: widget.width,
+                height: widget.height,
+                fit: BoxFit.cover,
+              ),
+              const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+            ],
+          );
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.black12,
+          child: const Center(
+            child: Icon(Icons.videocam, size: 50, color: Colors.grey),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class HighlyResilientImageWidget extends StatefulWidget {
+  final String path;
+  final bool isLocal;
+  final double width;
+  final double height;
+  final BoxFit fit;
+
+  static final Map<String, Uint8List> _localImageBytesCache = {};
+
+  const HighlyResilientImageWidget({
+    super.key,
+    required this.path,
+    required this.isLocal,
+    required this.width,
+    required this.height,
+    required this.fit,
+  });
+
+  @override
+  State<HighlyResilientImageWidget> createState() => _HighlyResilientImageWidgetState();
+}
+
+class _HighlyResilientImageWidgetState extends State<HighlyResilientImageWidget> {
+  Future<Uint8List?>? _localLoadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isLocal) {
+      if (HighlyResilientImageWidget._localImageBytesCache.containsKey(widget.path)) {
+        _localLoadFuture = Future.value(HighlyResilientImageWidget._localImageBytesCache[widget.path]);
+      } else {
+        _localLoadFuture = _readBytes();
+      }
+    }
+  }
+
+  Future<Uint8List?> _readBytes() async {
+    try {
+      final file = File(widget.path);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        HighlyResilientImageWidget._localImageBytesCache[widget.path] = bytes;
+        return bytes;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error reading local image bytes: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isLocal) {
+      final cachedBytes = HighlyResilientImageWidget._localImageBytesCache[widget.path];
+      if (cachedBytes != null) {
+        return Image.memory(
+          cachedBytes,
+          key: ValueKey('memory_${widget.path}'),
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildPlaceholder();
+          },
+        );
+      }
+
+      return FutureBuilder<Uint8List?>(
+        future: _localLoadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+            return Image.memory(
+              snapshot.data!,
+              key: ValueKey('memory_${widget.path}'),
+              width: widget.width,
+              height: widget.height,
+              fit: widget.fit,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildPlaceholder();
+              },
+            );
+          }
+          return _buildPlaceholder();
+        },
+      );
+    } else {
+      return Image.network(
+        widget.path,
+        key: ValueKey('network_${widget.path}'),
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildPlaceholder();
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _buildPlaceholder();
+        },
+      );
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: widget.width,
+      height: widget.height,
+      color: Colors.black.withOpacity(0.05),
+      child: const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.0,
+            color: Color(0xFF00A884),
+          ),
+        ),
+      ),
     );
   }
 }

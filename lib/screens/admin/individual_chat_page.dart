@@ -27,6 +27,9 @@ import 'package:path/path.dart' as p;
 import '../user/attachment_preview_screen.dart';
 import '../user/media_gallery_screen.dart';
 import '../../services/chat/global_audio_player.dart';
+import 'package:pdfx/pdfx.dart';
+import 'dart:typed_data';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 class IndividualChatPage extends StatefulWidget {
   final String name;
@@ -315,15 +318,17 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
             // Already have the real message, ignore
             debugPrint('♻️ Duplicate ignored: ${message.id}');
           } else if (tempIndex != -1) {
-            // Replace temp message with real one, preserving reply content/forwarded status
-            // in case the backend doesn't return them yet.
-            _messages[tempIndex] = message.copyWith(
+            final merged = message.copyWith(
               replyToContent: message.replyToContent ?? _messages[tempIndex].replyToContent,
               replyToSenderName: message.replyToSenderName ?? _messages[tempIndex].replyToSenderName,
               isForwarded: message.isForwarded || _messages[tempIndex].isForwarded,
               caption: message.caption ?? _messages[tempIndex].caption,
+              localPath: message.localPath ?? _messages[tempIndex].localPath,
+              previewUrl: message.previewUrl ?? _messages[tempIndex].previewUrl,
             );
-            debugPrint('⚡ Temp message replaced with real ID: ${message.id}');
+            _messages[tempIndex] = merged;
+            LocalDatabaseService().insertMessage(merged);
+            debugPrint('⚡ Temp message replaced & cached with real ID: ${message.id}');
           } else {
             // New message, insert at top
             _messages.insert(0, message);
@@ -379,6 +384,31 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         final mergedMessages = await localDb.getMessagesByConversation(_activeConversationId!);
         
         if (mounted) {
+          // Preserve localPath & upload state from in-memory temp messages
+          // so active uploads don't lose their preview when DB data overwrites.
+          final tempMessages = <String, ChatMessage>{};
+          for (final m in _messages) {
+            if (m.localPath != null) {
+              tempMessages[m.id] = m;
+            }
+          }
+          for (int i = 0; i < mergedMessages.length; i++) {
+            final existing = tempMessages[mergedMessages[i].id];
+            if (existing != null) {
+              mergedMessages[i] = mergedMessages[i].copyWith(
+                localPath: existing.localPath,
+                uploadStatus: existing.uploadStatus,
+                uploadProgress: existing.uploadProgress,
+              );
+            }
+          }
+          // Re-add any temp_ messages that haven't been confirmed yet
+          for (final m in _messages) {
+            if (m.id.startsWith('temp_') && !mergedMessages.any((merged) => merged.id == m.id)) {
+              mergedMessages.insert(0, m);
+            }
+          }
+
           setState(() {
             _messages = mergedMessages;
             _hasMore = response.hasMore ?? false;
@@ -481,17 +511,19 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         previewUrl: previewUrl,
       );
 
-      setState(() {
-        final idx = _messages.indexWhere((m) => m.id == tempId);
-        if (idx != -1) {
-          _messages[idx] = optimisticMsg;
-        } else {
-          _messages.insert(0, optimisticMsg);
-          LocalDatabaseService().insertMessage(optimisticMsg);
-        }
-        if (type == 'text' && content == null) _messageController.clear();
-        _replyingToMessage = null;
-      });
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == tempId);
+          if (idx != -1) {
+            _messages[idx] = optimisticMsg;
+          } else {
+            _messages.insert(0, optimisticMsg);
+          }
+          if (type == 'text' && content == null) _messageController.clear();
+          _replyingToMessage = null;
+        });
+      }
+      LocalDatabaseService().insertMessage(optimisticMsg);
 
       // If still uploading, don't emit to socket yet
       if (uploadStatus == MessageUploadStatus.uploading || uploadStatus == MessageUploadStatus.error) {
@@ -1063,12 +1095,11 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
         children: [
           // High-Performance WhatsApp Pattern Background
           Positioned.fill(
-            child: Image.network(
-              isDark 
-                ? 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/light-bg-theme.png'
-                : 'https://satyanewbucket.lon1.cdn.digitaloceanspaces.com/flutter/transparent-bg.png',
+            child: Image.asset(
+              isDark
+                ? 'assets/images/chat_bg_dark.png'
+                : 'assets/images/chat_bg_light.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: isDark ? const Color(0xFF0B141B) : const Color(0xFFE5DDD5)),
             ),
           ),
           Column(
@@ -1996,14 +2027,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (mounted)
-          setState(() {
-            _initialized = true;
-            _controller.play();
-          });
-      });
+    final String url = widget.url;
+    if (url.startsWith('http') || url.startsWith('https')) {
+      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+    } else {
+      String cleaned = cleanLocalPath(url);
+      _controller = VideoPlayerController.file(File(cleaned));
+    }
+    _controller.initialize().then((_) {
+      if (mounted) {
+        setState(() {
+          _initialized = true;
+          _controller.play();
+        });
+      }
+    });
   }
 
   @override
@@ -2304,48 +2342,39 @@ class _ChatBubble extends StatelessWidget {
         }
 
         bool isUnplayableVideo = message.type == 'video' && RegExp(r'\.mp4|\.mov|\.avi|\.webm', caseSensitive: false).hasMatch(displayUrl);
-        bool isLocalUpload = message.localPath != null && (message.content.isEmpty || !message.content.startsWith('http'));
+        
+        String? cleanedPath;
+        bool isLocalUpload = false;
+        if (message.localPath != null) {
+          cleanedPath = cleanLocalPath(message.localPath!);
+          // Always prefer local file if it exists on disk — even after upload
+          // completes. Prevents flash when switching Image.file → Image.network.
+          isLocalUpload = File(cleanedPath).existsSync();
+        }
 
         if (isLocalUpload || isUnplayableVideo) {
           if (message.type == 'video') {
-            img = Container(
+            img = LocalVideoThumbnailWidget(
+              localVideoPath: cleanedPath!,
               width: standardWidth,
               height: 200,
-              color: Colors.black12,
-              child: const Icon(Icons.videocam, size: 50, color: Colors.grey),
             );
           } else {
-            img = Image.file(File(message.localPath!), width: standardWidth, height: 200, fit: BoxFit.cover);
+            img = HighlyResilientImageWidget(
+              path: cleanedPath!,
+              isLocal: true,
+              width: standardWidth,
+              height: 200,
+              fit: BoxFit.cover,
+            );
           }
         } else {
-          img = Image.network(
-            AuthService().getFullUrl(displayUrl) ?? displayUrl,
+          img = HighlyResilientImageWidget(
+            path: AuthService().getFullUrl(displayUrl) ?? displayUrl,
+            isLocal: false,
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,
-            errorBuilder: (c, e, s) {
-              if (message.type == 'video') {
-                return Container(
-                  width: standardWidth,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.video_library, size: 40, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('Processing...', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                );
-              }
-              return const Icon(Icons.broken_image, size: 50);
-            },
           );
         }
 
@@ -2366,8 +2395,8 @@ class _ChatBubble extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (_) => MediaGalleryScreen(
-                  url: message.previewUrl ?? message.content,
-                  originalUrl: message.content,
+                  url: isLocalUpload ? cleanedPath! : (message.previewUrl ?? message.content),
+                  originalUrl: isLocalUpload ? cleanedPath! : message.content,
                   type: message.type,
                   fileName: message.fileName,
                   senderName: isMe ? 'You' : userName,
@@ -2465,131 +2494,251 @@ class _ChatBubble extends StatelessWidget {
           iconColor = Colors.white;
         }
 
-        media = Container(
-          width: standardWidth,
-          decoration: BoxDecoration(
-            color: cardBg,
-            border: Border.all(color: cardBorder, width: 1),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
+        String? cleanedDocPath;
+        bool isLocalDoc = false;
+        if (message.localPath != null) {
+          cleanedDocPath = cleanLocalPath(message.localPath!);
+          isLocalDoc = File(cleanedDocPath).existsSync(); // Always prefer local file
+        }
+
+        if (ext == 'pdf' && (isLocalDoc || message.previewUrl != null)) {
+          // Render beautiful split PDF card with Cover Page on top!
+          media = Container(
+            width: standardWidth,
+            decoration: BoxDecoration(
+              color: cardBg,
+              border: Border.all(color: cardBorder, width: 1),
               borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                final isVid = isVideo || (message.fileName != null && 
-                    (['mp4', 'mov', 'avi'].contains(message.fileName!.split('.').last.toLowerCase()))) || 
-                    message.type == 'video';
-                    
-                if (isVid) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MediaGalleryScreen(
-                        url: message.content,
-                        type: 'video',
-                        fileName: message.fileName,
-                        senderName: isMe ? 'You' : userName,
-                        userRole: userRole,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  if (!isUploading && !isError && message.content.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MediaGalleryScreen(
+                          url: isLocalDoc ? cleanedDocPath! : (message.previewUrl ?? message.content),
+                          originalUrl: isLocalDoc ? cleanedDocPath! : message.content,
+                          type: 'pdf',
+                          fileName: message.fileName,
+                          senderName: isMe ? 'You' : userName,
+                          userRole: userRole,
+                        ),
                       ),
-                    ),
-                  );
-                } else {
-                  final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
-                  String type = 'document';
-                  if (extStr == 'pdf') type = 'pdf';
-                  
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MediaGalleryScreen(
-                        url: message.content,
-                        type: type,
-                        fileName: message.fileName,
-                        senderName: isMe ? 'You' : userName,
-                        userRole: userRole,
-                      ),
-                    ),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
+                    );
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: isMe ? Colors.white.withOpacity(0.15) : iconColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(fileIcon, color: iconColor, size: 22),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            message.fileName ?? (isVideo ? 'Video file' : 'Document'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isMe ? Colors.white : Colors.blueGrey.shade900,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: badgeBg,
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(
-                                  ext.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: badgeText,
-                                    letterSpacing: 0.5,
+                    // Top: Page 1 cover preview
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                      child: SizedBox(
+                        height: 140,
+                        child: isLocalDoc
+                            ? LocalPdfThumbnailWidget(localPath: cleanedDocPath!, width: standardWidth, height: 140)
+                            : Image.network(
+                                AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => Container(
+                                  color: Colors.red.shade50,
+                                  child: const Center(
+                                    child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Tap to preview',
+                      ),
+                    ),
+                    // Bottom: File details row
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.white.withOpacity(0.15) : const Color(0xFFE53935).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.picture_as_pdf, color: isMe ? Colors.white : const Color(0xFFE53935), size: 18),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message.fileName ?? 'Document.pdf',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 10,
-                                    color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade400,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isMe ? Colors.white : Colors.blueGrey.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'PDF • Tap to view',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade500,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.remove_red_eye_outlined,
+                            color: isMe ? Colors.white.withOpacity(0.5) : Colors.blueGrey.shade400,
+                            size: 16,
                           ),
                         ],
                       ),
-                    ),
-                    Icon(
-                      Icons.remove_red_eye_outlined,
-                      color: isMe ? Colors.white.withOpacity(0.5) : Colors.blueGrey.shade400,
-                      size: 18,
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        );
+          );
+        } else {
+          // Classic card
+          media = Container(
+            width: standardWidth,
+            decoration: BoxDecoration(
+              color: cardBg,
+              border: Border.all(color: cardBorder, width: 1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  final isVid = isVideo || (message.fileName != null && 
+                      (['mp4', 'mov', 'avi'].contains(message.fileName!.split('.').last.toLowerCase()))) || 
+                      message.type == 'video';
+                      
+                  if (!isUploading && !isError && message.content.isNotEmpty) {
+                    if (isVid) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MediaGalleryScreen(
+                            url: isLocalDoc ? cleanedDocPath! : (message.previewUrl ?? message.content),
+                            originalUrl: isLocalDoc ? cleanedDocPath! : message.content,
+                            type: 'video',
+                            fileName: message.fileName,
+                            senderName: isMe ? 'You' : userName,
+                            userRole: userRole,
+                          ),
+                        ),
+                      );
+                    } else {
+                      final String extStr = message.fileName?.split('.').last.toLowerCase() ?? '';
+                      String type = 'document';
+                      if (extStr == 'pdf') type = 'pdf';
+                      
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MediaGalleryScreen(
+                            url: isLocalDoc ? cleanedDocPath! : (message.previewUrl ?? message.content),
+                            originalUrl: isLocalDoc ? cleanedDocPath! : message.content,
+                            type: type,
+                            fileName: message.fileName,
+                            senderName: isMe ? 'You' : userName,
+                            userRole: userRole,
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.white.withOpacity(0.15) : iconColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(fileIcon, color: iconColor, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              message.fileName ?? (isVideo ? 'Video file' : 'Document'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isMe ? Colors.white : Colors.blueGrey.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: badgeBg,
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    ext.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: badgeText,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Tap to preview',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: isMe ? Colors.white.withOpacity(0.6) : Colors.blueGrey.shade400,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.remove_red_eye_outlined,
+                        color: isMe ? Colors.white.withOpacity(0.5) : Colors.blueGrey.shade400,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
         break;
       case 'call':
         if (message.content.startsWith('http')) {
@@ -2610,29 +2759,63 @@ class _ChatBubble extends StatelessWidget {
     }
 
     if (isUploading || isError) {
-      media = Stack(
-        alignment: Alignment.center,
+      media = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Opacity(opacity: 0.7, child: media),
+          media,
           if (isUploading)
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: CircularProgressIndicator(
-                value: message.uploadProgress,
-                strokeWidth: 3,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    value: message.uploadProgress,
+                    backgroundColor: Colors.grey.withOpacity(0.3),
+                    color: const Color(0xFF00A884),
+                    minHeight: 3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Uploading ${(message.uploadProgress * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ],
               ),
             ),
           if (isError)
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white, size: 30),
-              onPressed: () {
-                if (message.localPath != null && onUploadRetry != null) {
-                  onUploadRetry!(message.localPath!, message.caption ?? '', message.type, message.id);
-                }
-              },
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Failed to upload. ',
+                      style: const TextStyle(fontSize: 10, color: Colors.red),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      if (message.localPath != null && onUploadRetry != null) {
+                        onUploadRetry!(message.localPath!, message.caption ?? '', message.type, message.id);
+                      }
+                    },
+                    child: const Text(
+                      'Retry',
+                      style: TextStyle(
+                        fontSize: 10, 
+                        color: Colors.blue, 
+                        fontWeight: FontWeight.bold, 
+                        decoration: TextDecoration.underline
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       );
@@ -2865,3 +3048,333 @@ class _WaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(_WaveformPainter oldDelegate) => true;
 }
+
+String cleanLocalPath(String path) {
+  String decoded = Uri.decodeFull(path);
+  if (decoded.startsWith('file://')) {
+    decoded = decoded.replaceFirst('file://', '');
+  } else if (decoded.startsWith('file:')) {
+    decoded = decoded.replaceFirst('file:', '');
+  }
+  if (!decoded.startsWith('/')) {
+    decoded = '/$decoded';
+  }
+  return decoded;
+}
+
+class LocalPdfThumbnailWidget extends StatefulWidget {
+  final String localPath;
+  final double width;
+  final double height;
+  
+  static final Map<String, Uint8List> _thumbnailCache = {};
+
+  const LocalPdfThumbnailWidget({
+    super.key,
+    required this.localPath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<LocalPdfThumbnailWidget> createState() => _LocalPdfThumbnailWidgetState();
+}
+
+class _LocalPdfThumbnailWidgetState extends State<LocalPdfThumbnailWidget> {
+  Future<Uint8List?>? _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (LocalPdfThumbnailWidget._thumbnailCache.containsKey(widget.localPath)) {
+      _thumbnailFuture = Future.value(LocalPdfThumbnailWidget._thumbnailCache[widget.localPath]);
+    } else {
+      _thumbnailFuture = _generateThumbnail();
+    }
+  }
+
+  Future<Uint8List?> _generateThumbnail() async {
+    try {
+      final document = await PdfDocument.openFile(widget.localPath);
+      final page = await document.getPage(1);
+      final pageImage = await page.render(
+        width: page.width * 2,
+        height: page.height * 2,
+        format: PdfPageImageFormat.jpeg,
+      );
+      await page.close();
+      await document.close();
+      if (pageImage?.bytes != null) {
+        LocalPdfThumbnailWidget._thumbnailCache[widget.localPath] = pageImage!.bytes;
+      }
+      return pageImage?.bytes;
+    } catch (e) {
+      debugPrint('Error generating local PDF thumbnail: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cachedBytes = LocalPdfThumbnailWidget._thumbnailCache[widget.localPath];
+    if (cachedBytes != null) {
+      return Image.memory(
+        cachedBytes,
+        key: ValueKey(widget.localPath),
+        width: widget.width,
+        height: widget.height,
+        fit: BoxFit.cover,
+      );
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+          return Image.memory(
+            snapshot.data!,
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.cover,
+          );
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.red.shade50,
+          child: const Center(
+            child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class LocalVideoThumbnailWidget extends StatefulWidget {
+  final String localVideoPath;
+  final double width;
+  final double height;
+
+  static final Map<String, Uint8List> _thumbnailCache = {};
+
+  const LocalVideoThumbnailWidget({
+    super.key,
+    required this.localVideoPath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<LocalVideoThumbnailWidget> createState() => _LocalVideoThumbnailWidgetState();
+}
+
+class _LocalVideoThumbnailWidgetState extends State<LocalVideoThumbnailWidget> {
+  Future<Uint8List?>? _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (LocalVideoThumbnailWidget._thumbnailCache.containsKey(widget.localVideoPath)) {
+      _thumbnailFuture = Future.value(LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath]);
+    } else {
+      _thumbnailFuture = _generateThumbnail();
+    }
+  }
+
+  Future<Uint8List?> _generateThumbnail() async {
+    try {
+      final thumbPath = await VideoThumbnail.thumbnailFile(
+        video: widget.localVideoPath,
+        thumbnailPath: (await getTemporaryDirectory()).path,
+        imageFormat: ImageFormat.JPEG,
+        maxHeight: 400,
+        quality: 60,
+      );
+      if (thumbPath != null) {
+        final bytes = await File(thumbPath).readAsBytes();
+        LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath] = bytes;
+        return bytes;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error generating local video thumbnail: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cachedBytes = LocalVideoThumbnailWidget._thumbnailCache[widget.localVideoPath];
+    if (cachedBytes != null) {
+      return Stack(
+        alignment: Alignment.center,
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            cachedBytes,
+            key: ValueKey(widget.localVideoPath),
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.cover,
+          ),
+          const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+        ],
+      );
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+          return Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              Image.memory(
+                snapshot.data!,
+                width: widget.width,
+                height: widget.height,
+                fit: BoxFit.cover,
+              ),
+              const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+            ],
+          );
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.black12,
+          child: const Center(
+            child: Icon(Icons.videocam, size: 50, color: Colors.grey),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class HighlyResilientImageWidget extends StatefulWidget {
+  final String path;
+  final bool isLocal;
+  final double width;
+  final double height;
+  final BoxFit fit;
+
+  static final Map<String, Uint8List> _localImageBytesCache = {};
+
+  const HighlyResilientImageWidget({
+    super.key,
+    required this.path,
+    required this.isLocal,
+    required this.width,
+    required this.height,
+    required this.fit,
+  });
+
+  @override
+  State<HighlyResilientImageWidget> createState() => _HighlyResilientImageWidgetState();
+}
+
+class _HighlyResilientImageWidgetState extends State<HighlyResilientImageWidget> {
+  Future<Uint8List?>? _localLoadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isLocal) {
+      if (HighlyResilientImageWidget._localImageBytesCache.containsKey(widget.path)) {
+        _localLoadFuture = Future.value(HighlyResilientImageWidget._localImageBytesCache[widget.path]);
+      } else {
+        _localLoadFuture = _readBytes();
+      }
+    }
+  }
+
+  Future<Uint8List?> _readBytes() async {
+    try {
+      final file = File(widget.path);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        HighlyResilientImageWidget._localImageBytesCache[widget.path] = bytes;
+        return bytes;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error reading local image bytes: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isLocal) {
+      final cachedBytes = HighlyResilientImageWidget._localImageBytesCache[widget.path];
+      if (cachedBytes != null) {
+        return Image.memory(
+          cachedBytes,
+          key: ValueKey('memory_${widget.path}'),
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildPlaceholder();
+          },
+        );
+      }
+
+      return FutureBuilder<Uint8List?>(
+        future: _localLoadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+            return Image.memory(
+              snapshot.data!,
+              key: ValueKey('memory_${widget.path}'),
+              width: widget.width,
+              height: widget.height,
+              fit: widget.fit,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildPlaceholder();
+              },
+            );
+          }
+          return _buildPlaceholder();
+        },
+      );
+    } else {
+      return Image.network(
+        widget.path,
+        key: ValueKey('network_${widget.path}'),
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildPlaceholder();
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _buildPlaceholder();
+        },
+      );
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: widget.width,
+      height: widget.height,
+      color: Colors.black.withOpacity(0.05),
+      child: const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.0,
+            color: Color(0xFF00A884),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
