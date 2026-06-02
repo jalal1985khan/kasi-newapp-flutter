@@ -17,7 +17,7 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
   DateTime? _lastTapTime;
   static const int _requiredTaps = 5;
   final AuthService _authService = AuthService();
-  String _appVersion = 'v1.0.0';
+  String _appVersion = 'v8.0.1';
 
   @override
   void initState() {

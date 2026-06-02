@@ -43,7 +43,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       debugPrint('Error loading app version: $e');
       if (mounted) {
         setState(() {
-          _appVersion = 'App Version 7.0.1';
+          _appVersion = 'App Version 8.0.1';
         });
       }
     }

@@ -155,8 +155,8 @@ class UpdateService {
       } catch (_) {
         return UpdateCheckResult(
           isUpdateAvailable: false,
-          currentVersion: '1.0.0',
-          currentBuildNumber: 1,
+          currentVersion: '8.0.1',
+          currentBuildNumber: 10,
         );
       }
     }
