@@ -5,6 +5,7 @@ import '../../models/signin/signedin_user_details.dart';
 import '../../services/auth_service.dart';
 import 'admin_common_widgets/admin_layout.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -19,11 +20,31 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final _confirmPasswordController = TextEditingController();
 
   User? _user;
+  String _appVersion = 'Loading...';
 
   @override
   void initState() {
     super.initState();
     _loadUserDetails();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'App Version ${packageInfo.version}';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version: $e');
+      if (mounted) {
+        setState(() {
+          _appVersion = 'App Version 2.4.0';
+        });
+      }
+    }
   }
 
   bool _isUploadingImage = false;
@@ -587,7 +608,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   const SizedBox(height: 40),
                   Center(
                     child: Text(
-                      'App Version 2.4.0',
+                      _appVersion,
                       style: TextStyle(fontSize: 12, color: subTextColor.withOpacity(0.5)),
                     ),
                   ),
