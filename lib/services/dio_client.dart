@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../main.dart';
 import '../screens/general_pages/splash_screen.dart';
 import 'api_constants.dart';
@@ -10,6 +11,9 @@ class DioClient {
   static final DioClient _instance = DioClient._internal();
   late final Dio dio;
   final _storage = const FlutterSecureStorage();
+  
+  String? _cachedVersion;
+  String? _cachedBuild;
 
   factory DioClient() {
     return _instance;
@@ -37,6 +41,22 @@ class DioClient {
           if (accessToken != null) {
             options.headers['Authorization'] = 'Bearer $accessToken';
           }
+
+          if (_cachedVersion == null || _cachedBuild == null) {
+            try {
+              final packageInfo = await PackageInfo.fromPlatform();
+              _cachedVersion = packageInfo.version;
+              _cachedBuild = packageInfo.buildNumber;
+            } catch (_) {}
+          }
+
+          if (_cachedVersion != null) {
+            options.headers['x-app-version'] = _cachedVersion;
+          }
+          if (_cachedBuild != null) {
+            options.headers['x-app-build'] = _cachedBuild;
+          }
+
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
@@ -48,6 +68,12 @@ class DioClient {
                     await Dio(BaseOptions(baseUrl: ApiConstants.baseUrl)).post(
                       ApiConstants.refresh,
                       data: {'refreshToken': refreshToken},
+                      options: Options(
+                        headers: {
+                          if (_cachedVersion != null) 'x-app-version': _cachedVersion,
+                          if (_cachedBuild != null) 'x-app-build': _cachedBuild,
+                        },
+                      ),
                     );
 
                 if (refreshResponse.statusCode == 200 &&
