@@ -43,7 +43,7 @@ dependencies:
   spreadsheet_decoder: ^2.1.1
   intl: ^0.19.0
   package_info_plus: ^8.2.0
-  ota_update: ^4.0.3
+  ota_update: ^7.1.0
 
 
   # The following adds the Cupertino Icons font to your application.
