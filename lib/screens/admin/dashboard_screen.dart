@@ -14,29 +14,21 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final AdminDashboardService _dashboardService = AdminDashboardService();
-  final AuthService _authService = AuthService();
 
   Map<String, dynamic>? _stats;
   List<dynamic> _recentUploads = [];
   bool _isLoading = true;
   String? _errorMessage;
-  String _adminName = 'Admin';
+  // Read name synchronously from in-memory notifier — already populated before runApp
+  String _adminName = AuthService.userNotifier.value?['name'] ?? 'Admin';
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    // No _loadProfile() needed — name is already available synchronously above
     _fetchDashboardData();
   }
 
-  Future<void> _loadProfile() async {
-    final user = await _authService.getUser();
-    if (user != null && mounted) {
-      setState(() {
-        _adminName = user['name'] ?? 'Admin';
-      });
-    }
-  }
 
   Future<void> _fetchDashboardData() async {
     setState(() {

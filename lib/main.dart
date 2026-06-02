@@ -10,6 +10,7 @@ import 'screens/special_widgets/group_call_overlay.dart';
 import 'services/chat/socket_service.dart';
 import 'services/auth_service.dart';
 import 'services/fcm_service.dart';
+import 'services/update/app_update_manager.dart';
 import 'utils/premium_widgets.dart';
 
 import 'package:audio_session/audio_session.dart';
@@ -17,37 +18,18 @@ import 'package:audio_session/audio_session.dart';
 /// Global navigator key — lets SocketService show call UI from anywhere.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() async {
+/// Shared future that completes once Firebase + AuthService are ready.
+/// Splash screen awaits this while it is already visible — no black screen.
+late final Future<void> appInitFuture;
+
+void main() {
+  // Must be synchronous — no async, no awaits before runApp()
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Audio Session for VOIP
-  final session = await AudioSession.instance;
-  await session.configure(AudioSessionConfiguration(
-    avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-    avAudioSessionCategoryOptions:
-        AVAudioSessionCategoryOptions.allowBluetooth |
-        AVAudioSessionCategoryOptions.defaultToSpeaker,
-    avAudioSessionMode: AVAudioSessionMode.voiceChat,
-    avAudioSessionRouteSharingPolicy:
-        AVAudioSessionRouteSharingPolicy.defaultPolicy,
-    androidAudioAttributes: AndroidAudioAttributes(
-      contentType: AndroidAudioContentType.speech,
-      flags: AndroidAudioFlags.none,
-      usage: AndroidAudioUsage.voiceCommunication,
-    ),
-    androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransient,
-    androidWillPauseWhenDucked: true,
-  ));
-  
-  // 1. Initialize Firebase Core
-  await Firebase.initializeApp();
+  // Kick off all heavy init work as a future (non-blocking)
+  appInitFuture = _initializeApp();
 
-  // 2. Initialize FCM (Permissions + Listeners + Token sync)
-  await FCMService().init();
-
-  // 3. Initialize AuthService (User profile sync)
-  await AuthService().init();
-
+  // Show the UI IMMEDIATELY — splash renders with zero delay
   runApp(
     MultiProvider(
       providers: [
@@ -59,7 +41,24 @@ void main() async {
     ),
   );
 
-  // Wire incoming-call socket events globally
+  // Wire all global event handlers after runApp
+  _wireGlobalHandlers();
+
+  // Start background services once init completes
+  appInitFuture.then((_) => _initBackgroundServices()).catchError((e) {
+    debugPrint('⚠️ [App Init] Error: $e');
+  });
+}
+
+/// Sequential inits that must complete before the app navigates away from splash.
+Future<void> _initializeApp() async {
+  await Firebase.initializeApp();
+  await AuthService().init();
+}
+
+/// Global event handlers — wired once, work everywhere.
+void _wireGlobalHandlers() {
+  // Incoming 1-to-1 call
   SocketService().setIncomingCallHandler((data) {
     final overlay = navigatorKey.currentState?.overlay;
     if (overlay == null) return;
@@ -74,7 +73,7 @@ void main() async {
     );
   });
 
-  // Wire incoming GROUP call socket events globally
+  // Incoming group call
   SocketService().setIncomingGroupCallHandler((data) {
     final overlay = navigatorKey.currentState?.overlay;
     if (overlay == null) return;
@@ -90,7 +89,7 @@ void main() async {
     );
   });
 
-  // Wire forced-logout events globally 
+  // Forced logout (company deactivated)
   SocketService().setForceLogoutHandler((message) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
@@ -122,6 +121,52 @@ void main() async {
         );
       },
     );
+  });
+}
+
+/// Heavy services initialized after UI is shown — never blocks splash screen.
+void _initBackgroundServices() {
+  // FCM: permissions + token sync (network call — fire and forget)
+  FCMService().init().catchError((e) {
+    debugPrint('⚠️ [FCM] Background init failed: $e');
+  });
+
+  // AudioSession: VOIP audio routing config for call feature
+  AudioSession.instance.then((session) {
+    session.configure(AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+      avAudioSessionCategoryOptions:
+          AVAudioSessionCategoryOptions.allowBluetooth |
+          AVAudioSessionCategoryOptions.defaultToSpeaker,
+      avAudioSessionMode: AVAudioSessionMode.voiceChat,
+      avAudioSessionRouteSharingPolicy:
+          AVAudioSessionRouteSharingPolicy.defaultPolicy,
+      androidAudioAttributes: const AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.speech,
+        flags: AndroidAudioFlags.none,
+        usage: AndroidAudioUsage.voiceCommunication,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransient,
+      androidWillPauseWhenDucked: true,
+    ));
+  }).catchError((e) {
+    debugPrint('⚠️ [AudioSession] Background init failed: $e');
+  });
+
+  // OTA Update: poll server on every cold start, works regardless of login state.
+  // Small delay lets the navigator settle so the dialog has a valid context.
+  Future.delayed(const Duration(milliseconds: 1500), () {
+    AppUpdateManager().checkAndShow();
+  });
+
+  // Real-time update push via socket: fired when admin publishes a new release.
+  // Registered globally so it works on ANY screen, logged-in or not.
+  SocketService().on('app:update_available', (data) {
+    if (data != null && data['release'] != null) {
+      AppUpdateManager().showFromRelease(
+        Map<String, dynamic>.from(data['release'] as Map),
+      );
+    }
   });
 }
 

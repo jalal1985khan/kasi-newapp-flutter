@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import '../../newsfeeds/home_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat/socket_service.dart';
+import '../../main.dart' show appInitFuture;
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,7 +15,6 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -31,18 +30,24 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkSession() async {
-    // Wait for animation to show for a bit
-    await Future.delayed(const Duration(seconds: 3));
-    
+    // Run both simultaneously:
+    // 1. appInitFuture  — Firebase init + AuthService.init() (started in main())
+    // 2. 800ms minimum — so the logo animation feels intentional, not a flash
+    // The splash is ALREADY visible while this work happens — zero black screen.
+    await Future.wait([
+      appInitFuture,
+      Future.delayed(const Duration(milliseconds: 800)),
+    ]);
+
     if (!mounted) return;
 
-    final user = await _authService.getUser();
+    // AuthService.init() is now complete — user is in memory, no extra network call
+    final user = AuthService.userNotifier.value;
     if (user != null) {
-      // User is logged in, connect socket in background
+      // Already logged in — connect socket in background (non-blocking)
       SocketService().connect();
     }
 
-    // Always go to News Home first
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const HomeScreen()),
