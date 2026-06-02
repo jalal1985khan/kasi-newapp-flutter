@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:ota_update/ota_update.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../dio_client.dart';
 
 class AppReleaseInfo {
@@ -123,12 +124,17 @@ class UpdateService {
         // Update is available if:
         // - Uploader enabled dynamic self update toggling (isSelfUpdateEnabled is true)
         // - The app is not already updated
+        final prefs = await SharedPreferences.getInstance();
+        final lastInstalledBuild = prefs.getInt('last_installed_release_build') ?? 0;
+        final lastInstalledVersion = prefs.getString('last_installed_release_version') ?? '';
+
         final isUpdated = isAlreadyUpdated(
           currentVersion: currentVersion,
           currentBuild: currentBuild,
           releaseVersion: release.version,
           releaseBuild: release.buildNumber,
-        );
+        ) || (lastInstalledBuild >= release.buildNumber)
+          || (lastInstalledVersion == release.version);
         final isAvailable = release.isSelfUpdateEnabled && !isUpdated;
 
         print('[UpdateService] Update available: $isAvailable. Backend build: ${release.buildNumber}, version: ${release.version}, Self update enabled: ${release.isSelfUpdateEnabled}');

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'update_service.dart';
 import '../../main.dart' show navigatorKey;
 
@@ -61,14 +62,19 @@ class AppUpdateManager {
       final currentVersion = packageInfo.version;
       final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-      debugPrint('[AppUpdateManager] showFromRelease check: releaseBuild=${release.buildNumber}, releaseVersion=${release.version}, currentBuild=$currentBuild, currentVersion=$currentVersion, isSelfUpdateEnabled=${release.isSelfUpdateEnabled}');
+      final prefs = await SharedPreferences.getInstance();
+      final lastInstalledBuild = prefs.getInt('last_installed_release_build') ?? 0;
+      final lastInstalledVersion = prefs.getString('last_installed_release_version') ?? '';
+
+      debugPrint('[AppUpdateManager] showFromRelease check: releaseBuild=${release.buildNumber}, releaseVersion=${release.version}, currentBuild=$currentBuild, currentVersion=$currentVersion, lastInstalledBuild=$lastInstalledBuild, lastInstalledVersion=$lastInstalledVersion');
       
       final isUpdated = UpdateService.isAlreadyUpdated(
         currentVersion: currentVersion,
         currentBuild: currentBuild,
         releaseVersion: release.version,
         releaseBuild: release.buildNumber,
-      );
+      ) || (lastInstalledBuild >= release.buildNumber)
+        || (lastInstalledVersion == release.version);
       
       if (release.isSelfUpdateEnabled && !isUpdated) {
         _showDialog(release);
@@ -129,6 +135,14 @@ class AppUpdateManager {
               case OtaStatus.INSTALLATION_DONE:
                 statusMessage = 'Installing update...';
                 downloadProgress = 100.0;
+                // Save the successfully downloaded build number in SharedPreferences as a safeguard.
+                SharedPreferences.getInstance().then((prefs) {
+                  prefs.setInt('last_installed_release_build', release.buildNumber);
+                  prefs.setString('last_installed_release_version', release.version);
+                  debugPrint('[AppUpdateManager] Successfully marked build ${release.buildNumber} (${release.version}) as installed in SharedPreferences.');
+                }).catchError((e) {
+                  debugPrint('Failed to save last installed build to SharedPreferences: $e');
+                });
                 break;
               case OtaStatus.ALREADY_RUNNING_ERROR:
                 hasFailed = true;
