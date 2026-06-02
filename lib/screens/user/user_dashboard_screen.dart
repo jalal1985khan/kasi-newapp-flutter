@@ -410,13 +410,23 @@ class _UserDashboardScreenState extends State<UserDashboardScreen>
   Widget _buildFinancialSummary(Color cardColor, Color subTextColor) {
     final cur = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
     
+    final String creditLabel = (_records.isNotEmpty && _records.first.customHeaders != null)
+        ? (_records.first.customHeaders!['c5'] ?? 'Credits')
+        : 'Credits';
+    final String debitLabel = (_records.isNotEmpty && _records.first.customHeaders != null)
+        ? (_records.first.customHeaders!['c9'] ?? 'Debits')
+        : 'Debits';
+    final String valueLabel = (_records.isNotEmpty && _records.first.customHeaders != null)
+        ? (_records.first.customHeaders!['c8'] ?? 'Value')
+        : 'Value';
+
     return Row(
       children: [
-        _buildSummaryCard('Credits', cur.format(_totalCredits), const Color(0xFF25D366), Icons.arrow_downward, cardColor, subTextColor),
+        _buildSummaryCard(creditLabel, cur.format(_totalCredits), const Color(0xFF25D366), Icons.arrow_downward, cardColor, subTextColor),
         const SizedBox(width: 12),
-        _buildSummaryCard('Debits', cur.format(_totalDebits), Colors.orange, Icons.arrow_upward, cardColor, subTextColor),
+        _buildSummaryCard(debitLabel, cur.format(_totalDebits), Colors.orange, Icons.arrow_upward, cardColor, subTextColor),
         const SizedBox(width: 12),
-        _buildSummaryCard('Value', cur.format(_totalValue), Colors.blue, Icons.account_balance_wallet, cardColor, subTextColor),
+        _buildSummaryCard(valueLabel, cur.format(_totalValue), Colors.blue, Icons.account_balance_wallet, cardColor, subTextColor),
       ],
     );
   }
@@ -654,14 +664,14 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
                       ),
                       const SizedBox(height: 16),
                       _receiptRow('Transaction ID', widget.record.id.toUpperCase(), widget.textColor, widget.subTextColor),
-                      _receiptRow('Type', widget.record.transactionType ?? 'N/A', widget.textColor, widget.subTextColor),
-                      _receiptRow('Status', widget.record.transactionStatus ?? 'Processed', widget.textColor, widget.subTextColor),
+                      _receiptRow(widget.record.customHeaders?['c2'] ?? 'Type', widget.record.transactionType ?? 'N/A', widget.textColor, widget.subTextColor),
+                      _receiptRow(widget.record.customHeaders?['c10'] ?? 'Status', widget.record.transactionStatus ?? 'Processed', widget.textColor, widget.subTextColor),
                       const Divider(height: 32),
                       Row(
                         children: [
-                          Expanded(child: _receiptStat('CREDITS', cur.format(widget.record.credits), const Color(0xFF25D366), widget.subTextColor)),
-                          Expanded(child: _receiptStat('DEBITS', cur.format(widget.record.impact), Colors.orange, widget.subTextColor)),
-                          Expanded(child: _receiptStat('TOTAL', cur.format(widget.record.totalValue), Colors.blue, widget.subTextColor)),
+                          Expanded(child: _receiptStat((widget.record.customHeaders?['c5'] ?? 'CREDITS').toUpperCase(), cur.format(widget.record.credits), const Color(0xFF25D366), widget.subTextColor)),
+                          Expanded(child: _receiptStat((widget.record.customHeaders?['c9'] ?? 'DEBITS').toUpperCase(), cur.format(widget.record.impact), Colors.orange, widget.subTextColor)),
+                          Expanded(child: _receiptStat((widget.record.customHeaders?['c8'] ?? 'TOTAL').toUpperCase(), cur.format(widget.record.totalValue), Colors.blue, widget.subTextColor)),
                         ],
                       ),
                       if (widget.record.data.isNotEmpty) ...[

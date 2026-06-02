@@ -88,6 +88,7 @@ class EmployeeData {
   final bool isEdited;
   final String updatedAt;
   String? uploadedRecordUrl;
+  final Map<String, dynamic>? customHeaders;
 
   EmployeeData({
     required this.id,
@@ -106,6 +107,7 @@ class EmployeeData {
     required this.isEdited,
     required this.updatedAt,
     this.uploadedRecordUrl,
+    this.customHeaders,
   });
 
   factory EmployeeData.fromJson(Map<String, dynamic> json) {
@@ -126,6 +128,9 @@ class EmployeeData {
       isEdited: json['isEdited'] ?? false,
       updatedAt: json['updatedAt'] ?? '',
       uploadedRecordUrl: json['uploadedRecordUrl'],
+      customHeaders: json['customHeaders'] != null
+          ? Map<String, dynamic>.from(json['customHeaders'])
+          : null,
     );
   }
 }
