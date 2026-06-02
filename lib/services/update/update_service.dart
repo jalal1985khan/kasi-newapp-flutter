@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:ota_update/ota_update.dart';
-import '../api_constants.dart';
 import '../dio_client.dart';
 
 class AppReleaseInfo {
@@ -57,6 +55,45 @@ class UpdateCheckResult {
 class UpdateService {
   static final Dio _dio = DioClient().dio;
 
+  /// Helper to compare semantic versions (e.g. "7.0.1" >= "6.1.2")
+  static bool isVersionGreaterOrEqual(String current, String latest) {
+    try {
+      final currentClean = current.replaceAll('v', '').trim();
+      final latestClean = latest.replaceAll('v', '').trim();
+      
+      final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final latestParts = latestClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      
+      final maxLength = currentParts.length > latestParts.length ? currentParts.length : latestParts.length;
+      for (int i = 0; i < maxLength; i++) {
+        final cVal = i < currentParts.length ? currentParts[i] : 0;
+        final lVal = i < latestParts.length ? latestParts[i] : 0;
+        if (cVal > lVal) return true;
+        if (cVal < lVal) return false;
+      }
+      return true; // equal
+    } catch (_) {
+      return current.trim() == latest.trim();
+    }
+  }
+
+  /// Evaluates if the device's running app matches or exceeds the backend release version and build.
+  static bool isAlreadyUpdated({
+    required String currentVersion,
+    required int currentBuild,
+    required String releaseVersion,
+    required int releaseBuild,
+  }) {
+    // If the local build number is equal or greater, it's definitely updated or newer.
+    if (currentBuild >= releaseBuild) return true;
+    
+    // If build number is less, but semantic version is equal or greater (e.g. installed via different builder),
+    // we also consider it updated to avoid showing redundant updates.
+    if (isVersionGreaterOrEqual(currentVersion, releaseVersion)) return true;
+    
+    return false;
+  }
+
   /// Queries the public version endpoint and compares against local package info.
   static Future<UpdateCheckResult> checkUpdate() async {
     try {
@@ -85,10 +122,16 @@ class UpdateService {
 
         // Update is available if:
         // - Uploader enabled dynamic self update toggling (isSelfUpdateEnabled is true)
-        // - The backend build number is higher than the running application build number
-        final isAvailable = release.isSelfUpdateEnabled && (release.buildNumber > currentBuild);
+        // - The app is not already updated
+        final isUpdated = isAlreadyUpdated(
+          currentVersion: currentVersion,
+          currentBuild: currentBuild,
+          releaseVersion: release.version,
+          releaseBuild: release.buildNumber,
+        );
+        final isAvailable = release.isSelfUpdateEnabled && !isUpdated;
 
-        print('[UpdateService] Update available: $isAvailable. Backend build: ${release.buildNumber}, Self update enabled: ${release.isSelfUpdateEnabled}');
+        print('[UpdateService] Update available: $isAvailable. Backend build: ${release.buildNumber}, version: ${release.version}, Self update enabled: ${release.isSelfUpdateEnabled}');
 
         return UpdateCheckResult(
           isUpdateAvailable: isAvailable,

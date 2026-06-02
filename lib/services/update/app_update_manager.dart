@@ -58,10 +58,19 @@ class AppUpdateManager {
     try {
       final release = AppReleaseInfo.fromJson(releaseData);
       final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
       final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-      debugPrint('[AppUpdateManager] showFromRelease check: releaseBuild=${release.buildNumber}, currentBuild=$currentBuild, isSelfUpdateEnabled=${release.isSelfUpdateEnabled}');
-      if (release.isSelfUpdateEnabled && release.buildNumber > currentBuild) {
+      debugPrint('[AppUpdateManager] showFromRelease check: releaseBuild=${release.buildNumber}, releaseVersion=${release.version}, currentBuild=$currentBuild, currentVersion=$currentVersion, isSelfUpdateEnabled=${release.isSelfUpdateEnabled}');
+      
+      final isUpdated = UpdateService.isAlreadyUpdated(
+        currentVersion: currentVersion,
+        currentBuild: currentBuild,
+        releaseVersion: release.version,
+        releaseBuild: release.buildNumber,
+      );
+      
+      if (release.isSelfUpdateEnabled && !isUpdated) {
         _showDialog(release);
       }
     } catch (e) {

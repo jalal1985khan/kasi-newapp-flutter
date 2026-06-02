@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../screens/login_screen.dart';
 import '../../services/auth_service.dart';
 import '../../screens/admin/admin_main_screen.dart';
@@ -16,6 +17,26 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
   DateTime? _lastTapTime;
   static const int _requiredTaps = 5;
   final AuthService _authService = AuthService();
+  String _appVersion = 'v1.0.0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${packageInfo.version}';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version in SecretAdminTap: $e');
+    }
+  }
 
   void _handleTap() async {
     final now = DateTime.now();
@@ -64,15 +85,16 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
       child: InkWell(
         onTap: _handleTap,
         borderRadius: BorderRadius.circular(8),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Text(
-            'v1.0.0', // Innocent looking text
+            _appVersion,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ),
       ),
     );
   }
 }
+
