@@ -7,9 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:news_cover/services/chat/socket_service.dart';
 import 'package:news_cover/services/event_bus.dart';
 
-/**
- * FCM Service — Handles push notifications for Android & iOS.
- */
+/// FCM Service — Handles push notifications for Android & iOS.
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;

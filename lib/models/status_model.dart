@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 class StatusModel {
   final String id;

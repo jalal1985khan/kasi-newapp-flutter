@@ -4,14 +4,6 @@ import '../../../providers/chat_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../providers/theme_provider.dart';
 import '../../login_screen.dart';
-import '../bulk_user_add_screen.dart';
-import '../employee_list_screen.dart';
-import '../accounts_debit_credit_screen.dart';
-import '../website_resourses_screen.dart';
-import '../reports_screen.dart';
-import '../chat_call_screen.dart';
-import '../admin_settings_screen.dart';
-import '../transactions_screen.dart';
 import '../admin_main_screen.dart';
 import '../../../newsfeeds/home_screen.dart';
 
@@ -152,7 +144,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
                       onChanged: (val) {
                         themeProvider.toggleTheme();
                       },
-                      activeColor: waTeal,
+                      activeThumbColor: waTeal,
                     );
                   },
                 ),

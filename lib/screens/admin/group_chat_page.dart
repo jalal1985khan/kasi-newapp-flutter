@@ -7,14 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:open_file/open_file.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:path/path.dart' as p;
 import 'package:intl/intl.dart';
 import 'package:pdfx/pdfx.dart';
-import 'dart:typed_data';
 import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../models/chat_message_model.dart';
 import '../../services/auth_service.dart';
@@ -35,6 +33,10 @@ import '../../services/event_bus.dart';
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+final _dateFormatter = DateFormat('MMM d, yyyy');
+final _timeFormatter = DateFormat('HH:mm');
+final _detailFormatter = DateFormat('hh:mm:ss a, MMM dd');
+
 String _thumbnailUrl(String url) {
   if (url.isEmpty) return url;
   if (url.contains('cloudinary.com') || url.contains('thumb_') || url.contains('wsrv.nl')) {
@@ -53,10 +55,10 @@ String _formatDate(DateTime d) {
   final now = DateTime.now();
   if (_isSameDay(d, now)) return 'Today';
   if (_isSameDay(d, now.subtract(const Duration(days: 1)))) return 'Yesterday';
-  return DateFormat('MMM d, yyyy').format(d);
+  return _dateFormatter.format(d);
 }
 
-String _formatTime(DateTime d) => DateFormat('HH:mm').format(d);
+String _formatTime(DateTime d) => _timeFormatter.format(d);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GroupChatPage
@@ -98,7 +100,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   // ─── State ────────────────────────────────────────────────────────────────
   List<ChatMessage> _messages = [];
   List<Map<String, dynamic>> _members = [];
-  List<String> _typingUsers = [];
+  final List<String> _typingUsers = [];
   bool _isLoading = true;
   bool _hasMore = false;
   bool _isLoadingMore = false;
@@ -109,7 +111,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   String _groupName = '';
 
   ChatMessage? _replyingTo;
-  bool _showEmojiPicker = false;
+  final bool _showEmojiPicker = false;
 
   // ─── Audio Recording ───────────────────────────────────────────────────────
   bool _isRecording = false;
@@ -120,7 +122,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   // ─── Message Keys (for scroll to reply) ───────────────────────────────────
   final Map<String, GlobalKey> _msgKeys = {};
-  
+  String? _highlightedMessageId;
+
   StreamSubscription? _socketSubscription;
   StreamSubscription? _eventBusSubscription;
 
@@ -184,10 +187,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Future<void> _loadFromLocalDB() async {
     try {
       final cached = await _db.getMessagesByConversation(widget.groupId);
-      if (mounted) {
+      if (mounted && cached.isNotEmpty) {
         setState(() {
-          _messages = cached;
-          _isLoading = cached.isEmpty;
+          _messages = _preserveLocalState(cached);
+          _isLoading = false;
         });
       }
     } catch (e) {
@@ -219,32 +222,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       final mergedMessages = await _db.getMessagesByConversation(widget.groupId);
 
       if (mounted) {
-        // Preserve localPath & upload state from in-memory temp messages
-        final tempMessages = <String, ChatMessage>{};
-        for (final m in _messages) {
-          if (m.localPath != null) {
-            tempMessages[m.id] = m;
-          }
-        }
-        for (int i = 0; i < mergedMessages.length; i++) {
-          final existing = tempMessages[mergedMessages[i].id];
-          if (existing != null) {
-            mergedMessages[i] = mergedMessages[i].copyWith(
-              localPath: existing.localPath,
-              uploadStatus: existing.uploadStatus,
-              uploadProgress: existing.uploadProgress,
-            );
-          }
-        }
-        // Re-add any temp_ messages that haven't been confirmed yet
-        for (final m in _messages) {
-          if (m.id.startsWith('temp_') && !mergedMessages.any((merged) => merged.id == m.id)) {
-            mergedMessages.insert(0, m);
-          }
-        }
-
         setState(() {
-          _messages = mergedMessages;
+          _messages = _preserveLocalState(mergedMessages);
           _hasMore = res['hasMore'] == true;
           _isLoading = false;
         });
@@ -744,12 +723,48 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Future<void> _scrollToMessage(String messageId) async {
+    // Step 1: Message is already rendered
     final key = _msgKeys[messageId];
     final ctx = key?.currentContext;
     if (ctx != null) {
       await Scrollable.ensureVisible(ctx,
-          duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          alignment: 0.5);
+      _flashHighlight(messageId);
+      return;
     }
+
+    // Step 2: Message is virtualized — scroll to estimated offset then retry
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+
+    if (_scrollCtrl.hasClients) {
+      final estimatedOffset = idx * 72.0;
+      await _scrollCtrl.animateTo(
+        estimatedOffset.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
+
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final retryCtx = _msgKeys[messageId]?.currentContext;
+    if (retryCtx != null) {
+      await Scrollable.ensureVisible(retryCtx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.5);
+      _flashHighlight(messageId);
+    }
+  }
+
+  void _flashHighlight(String messageId) {
+    setState(() => _highlightedMessageId = messageId);
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) setState(() => _highlightedMessageId = null);
+    });
   }
 
   // ─── Long Press Menu ──────────────────────────────────────────────────────
@@ -1259,28 +1274,57 @@ class _GroupChatPageState extends State<GroupChatPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showDate) _buildDateSep(msg.createdAt, isDark),
-            Dismissible(
-              key: ValueKey('dismiss_${msg.id}'),
-              direction: DismissDirection.startToEnd,
-              confirmDismiss: (_) async {
-                setState(() => _replyingTo = msg);
-                return false;
-              },
-              background: Container(
-                padding: const EdgeInsets.only(left: 20),
-                alignment: Alignment.centerLeft,
-                child: const Icon(Icons.reply, color: Color(0xFF00A884)),
+            TweenAnimationBuilder<double>(
+              key: ValueKey('hl_${msg.id}_${_highlightedMessageId == msg.id ? 1 : 0}'),
+              tween: Tween<double>(
+                begin: _highlightedMessageId == msg.id ? 1.0 : 0.0,
+                end: 0.0,
               ),
-              child: _GroupBubble(
+              duration: const Duration(milliseconds: 1800),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                final highlightColor = isDark
+                    ? Colors.white.withOpacity(value * 0.15)
+                    : const Color(0xFF00A884).withOpacity(value * 0.12);
+                return Container(
+                  decoration: BoxDecoration(
+                    color: highlightColor,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: value > 0.1
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF00A884).withOpacity(value * 0.2),
+                              blurRadius: 10 * value,
+                              spreadRadius: value,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: child,
+                );
+              },
+              child: Dismissible(
                 key: _msgKeys[msg.id] ??= GlobalKey(),
-                message: msg,
-                isMe: isMe,
-                currentUserId: _currentUserId ?? '',
-                onLongPress: () => _showMessageOptions(ctx, msg),
-                onReplyTap: (id) => _scrollToMessage(id),
-                onUploadRetry: (path, caption, type, id) =>
-                    _uploadAndSend(path, caption, type, id: id),
-                userRole: _userRole ?? '',
+                direction: DismissDirection.startToEnd,
+                confirmDismiss: (_) async {
+                  setState(() => _replyingTo = msg);
+                  return false;
+                },
+                background: Container(
+                  padding: const EdgeInsets.only(left: 20),
+                  alignment: Alignment.centerLeft,
+                  child: const Icon(Icons.reply, color: Color(0xFF00A884)),
+                ),
+                child: _GroupBubble(
+                  message: msg,
+                  isMe: isMe,
+                  currentUserId: _currentUserId ?? '',
+                  onLongPress: () => _showMessageOptions(ctx, msg),
+                  onReplyTap: (id) => _scrollToMessage(id),
+                  onUploadRetry: (path, caption, type, id) =>
+                      _uploadAndSend(path, caption, type, id: id),
+                  userRole: _userRole ?? '',
+                ),
               ),
             ),
           ],
@@ -1490,7 +1534,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           ),
                           child: ValueListenableBuilder<TextEditingValue>(
                             valueListenable: _textCtrl,
-                            builder: (_, v, __) => AnimatedSwitcher(
+                            builder: (_, v, _) => AnimatedSwitcher(
                               duration: const Duration(milliseconds: 200),
                               child: Icon(
                                 v.text.trim().isNotEmpty ? Icons.send : Icons.mic,
@@ -1905,23 +1949,42 @@ class _GroupBubble extends StatelessWidget {
               ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: isLocalUpload
-            ? HighlyResilientImageWidget(
-                path: cleanedPath!,
-                isLocal: true,
-                width: _maxWidth,
-                height: 180,
-                fit: BoxFit.cover,
-              )
-            : HighlyResilientImageWidget(
-                path: _thumbnailUrl(AuthService().getFullUrl(
-                        message.previewUrl ?? message.content) ??
-                    (message.previewUrl ?? message.content)),
-                isLocal: false,
-                width: _maxWidth,
-                height: 180,
-                fit: BoxFit.cover,
-              ),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          switchInCurve: Curves.easeIn,
+          switchOutCurve: Curves.easeOut,
+          child: isUploading
+              ? Shimmer.fromColors(
+                  key: const ValueKey('skeleton'),
+                  baseColor: isDark ? const Color(0xFF202C33) : const Color(0xFFE0E0E0),
+                  highlightColor: isDark ? const Color(0xFF2C3943) : const Color(0xFFF5F5F5),
+                  child: Container(
+                    width: _maxWidth,
+                    height: 180,
+                    color: Colors.white,
+                  ),
+                )
+              : isLocalUpload
+                  ? HighlyResilientImageWidget(
+                      key: const ValueKey('local_image'),
+                      path: cleanedPath!,
+                      isLocal: true,
+                      width: _maxWidth,
+                      height: 180,
+                      fit: BoxFit.cover,
+                    )
+                  : CachedNetworkImage(
+                      key: const ValueKey('remote_image'),
+                      imageUrl: AuthService().getFullUrl(
+                              message.previewUrl ?? message.content) ??
+                          (message.previewUrl ?? message.content),
+                      width: _maxWidth,
+                      height: 180,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => Container(color: Colors.black12),
+                      errorWidget: (_, _, _) => const Icon(Icons.broken_image),
+                    ),
+        ),
       ),
     );
   }
@@ -1937,7 +2000,7 @@ class _GroupBubble extends StatelessWidget {
 
     final previewUrl = message.previewUrl ?? '';
     final thumbUrl = previewUrl.isNotEmpty
-        ? _thumbnailUrl(AuthService().getFullUrl(previewUrl) ?? previewUrl)
+        ? (AuthService().getFullUrl(previewUrl) ?? previewUrl)
         : '';
 
     return GestureDetector(
@@ -1966,11 +2029,12 @@ class _GroupBubble extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   thumbUrl.isNotEmpty
-                      ? Image.network(thumbUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: thumbUrl,
                           width: _maxWidth,
                           height: 180,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorWidget: (_, _, _) => Container(
                               width: _maxWidth,
                               height: 180,
                               color: Colors.black26,
@@ -2103,10 +2167,10 @@ class _GroupBubble extends StatelessWidget {
                     height: 140,
                     child: isLocalDoc
                         ? LocalPdfThumbnailWidget(localPath: cleanedDocPath!, width: _maxWidth, height: 140)
-                        : Image.network(
-                            AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
+                        : CachedNetworkImage(
+                            imageUrl: AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
+                            errorWidget: (c, e, s) => Container(
                               color: Colors.red.shade50,
                               child: const Center(
                                 child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
@@ -2391,7 +2455,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
 
     return ListenableBuilder(
       listenable: _player,
-      builder: (_, __) {
+      builder: (_, _) {
         final isPlaying = isActive && _player.isPlaying;
         final pos = isActive ? _player.position : Duration.zero;
         final dur = isActive ? _player.duration : Duration.zero;
@@ -2749,19 +2813,13 @@ class _HighlyResilientImageWidgetState extends State<HighlyResilientImageWidget>
         },
       );
     } else {
-      return Image.network(
-        widget.path,
-        key: ValueKey('network_${widget.path}'),
+      return CachedNetworkImage(
+        imageUrl: widget.path,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPlaceholder();
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildPlaceholder();
-        },
+        placeholder: (_, _) => _buildPlaceholder(),
+        errorWidget: (_, _, _) => _buildPlaceholder(),
       );
     }
   }

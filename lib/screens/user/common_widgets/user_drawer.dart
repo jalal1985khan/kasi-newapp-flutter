@@ -116,7 +116,7 @@ class _UserDrawerState extends State<UserDrawer> {
                       onChanged: (val) {
                         themeProvider.toggleTheme();
                       },
-                      activeColor: waTeal,
+                      activeThumbColor: waTeal,
                     );
                   },
                 ),
@@ -179,7 +179,7 @@ class _UserDrawerState extends State<UserDrawer> {
           Navigator.pushReplacement(
             context,
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) => destination,
+              pageBuilder: (_, _, _) => destination,
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },

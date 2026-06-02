@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/chat_provider.dart';
-import '../user_dashboard_screen.dart';
-import '../user_profile_screen.dart';
-import '../user_chat_call_screen.dart';
-import '../../../utils/premium_widgets.dart';
-import 'package:flutter/services.dart';
-import '../../../services/chat/socket_service.dart';
 
 class UserBottomNavigationBar extends StatelessWidget {
   final int currentIndex;

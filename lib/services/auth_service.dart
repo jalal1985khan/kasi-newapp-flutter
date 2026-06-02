@@ -327,9 +327,9 @@ class AuthService {
       final response = await _dio.patch(
         ApiConstants.userProfile,
         data: {
-          if (name != null) 'name': name,
-          if (email != null) 'email': email,
-          if (profileImage != null) 'profileImage': profileImage,
+          'name': ?name,
+          'email': ?email,
+          'profileImage': ?profileImage,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );

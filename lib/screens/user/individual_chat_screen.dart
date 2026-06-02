@@ -7,15 +7,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:open_file/open_file.dart';
 import 'dart:io';
-import 'package:dio/dio.dart' as dio_lib;
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfx/pdfx.dart';
-import 'dart:typed_data';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import '../../services/event_bus.dart';
 import 'attachment_preview_screen.dart';
@@ -30,6 +26,11 @@ import '../../services/chat/local_database_service.dart';
 import '../../models/chat_message_model.dart';
 import '../special_widgets/call_overlay.dart';
 import '../../utils/premium_widgets.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+final _dateFormatter = DateFormat('MMM dd, yyyy');
+final _timeFormatter = DateFormat('hh:mm a');
+final _detailFormatter = DateFormat('hh:mm:ss a, MMM dd');
 
 class IndividualChatScreen extends StatefulWidget {
   final String conversationId;
@@ -286,6 +287,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
           if (existingIndex != -1) {
             // Ignore duplicate
           } else if (tempIndex != -1) {
+            final oldId = _messages[tempIndex].id;
             _messages[tempIndex] = message.copyWith(
               replyToContent: message.replyToContent ?? _messages[tempIndex].replyToContent,
               replyToSenderName: message.replyToSenderName ?? _messages[tempIndex].replyToSenderName,
@@ -294,6 +296,9 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
               localPath: message.localPath ?? _messages[tempIndex].localPath,
               previewUrl: message.previewUrl ?? _messages[tempIndex].previewUrl,
             );
+            if (_messageKeys.containsKey(oldId)) {
+              _messageKeys[message.id] = _messageKeys.remove(oldId)!;
+            }
           } else {
             _messages.insert(0, message);
           }
@@ -318,12 +323,45 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     _userRole = user?['role'];
 
     if (_activeConversationId != null) {
-      // 1. INSTANT LOCAL LOAD — show cached messages immediately
       final localDb = LocalDatabaseService();
+      
+      // Helper to preserve active uploads and local image states across reloads
+      List<ChatMessage> preserveLocalState(List<ChatMessage> freshMessages) {
+        final tempMessages = <String, ChatMessage>{};
+        final activeTempUploads = <ChatMessage>[];
+        for (final m in _messages) {
+          if (m.localPath != null) {
+            tempMessages[m.id] = m;
+          }
+          if (m.id.startsWith('temp_')) {
+            activeTempUploads.add(m);
+          }
+        }
+        
+        for (int i = 0; i < freshMessages.length; i++) {
+          final existing = tempMessages[freshMessages[i].id];
+          if (existing != null) {
+            freshMessages[i] = freshMessages[i].copyWith(
+              localPath: existing.localPath,
+              uploadStatus: existing.uploadStatus,
+              uploadProgress: existing.uploadProgress,
+            );
+          }
+        }
+        for (final tempMsg in activeTempUploads) {
+          if (!freshMessages.any((m) => m.id == tempMsg.id)) {
+            freshMessages.insert(0, tempMsg);
+          }
+        }
+        freshMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return freshMessages;
+      }
+
+      // 1. INSTANT LOCAL LOAD — show cached messages immediately
       final localMessages = await localDb.getMessagesByConversation(_activeConversationId!);
       if (mounted && localMessages.isNotEmpty) {
         setState(() {
-          _messages = localMessages;
+          _messages = preserveLocalState(localMessages);
           _isLoading = false;
         });
       }
@@ -339,33 +377,8 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
         final mergedMessages = await localDb.getMessagesByConversation(_activeConversationId!);
 
         if (mounted) {
-          // Preserve localPath & upload state from in-memory temp messages
-          // so active uploads don't lose their preview when DB data overwrites.
-          final tempMessages = <String, ChatMessage>{};
-          for (final m in _messages) {
-            if (m.localPath != null) {
-              tempMessages[m.id] = m;
-            }
-          }
-          for (int i = 0; i < mergedMessages.length; i++) {
-            final existing = tempMessages[mergedMessages[i].id];
-            if (existing != null) {
-              mergedMessages[i] = mergedMessages[i].copyWith(
-                localPath: existing.localPath,
-                uploadStatus: existing.uploadStatus,
-                uploadProgress: existing.uploadProgress,
-              );
-            }
-          }
-          // Also re-add any temp_ messages that haven't been confirmed yet
-          for (final m in _messages) {
-            if (m.id.startsWith('temp_') && !mergedMessages.any((merged) => merged.id == m.id)) {
-              mergedMessages.insert(0, m);
-            }
-          }
-
           setState(() {
-            _messages = mergedMessages;
+            _messages = preserveLocalState(mergedMessages);
             _hasMore = response.hasMore;
             _isLoading = false;
           });
@@ -850,9 +863,19 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
 
 
   void _scrollToMessage(String messageId) async {
+    while (_messageKeys[messageId]?.currentContext == null && _hasMore) {
+      await _loadMoreMessages();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
     final key = _messageKeys[messageId];
     if (key?.currentContext != null) {
-      await Scrollable.ensureVisible(key!.currentContext!, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+      await Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
       setState(() => _highlightedMessageId = messageId);
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _highlightedMessageId = null);
@@ -879,7 +902,12 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                 child: widget.avatar != null && widget.avatar!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(AuthService().getFullUrl(widget.avatar)!, fit: BoxFit.cover),
+                        child: CachedNetworkImage(
+                          imageUrl: AuthService().getFullUrl(widget.avatar)!,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(color: Colors.grey[800]),
+                          errorWidget: (context, url, error) => const Icon(Icons.person, color: Colors.white70),
+                        ),
                       )
                     : Text(widget.name[0].toUpperCase(), style: const TextStyle(color: Colors.white70)),
               ),
@@ -964,7 +992,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                             children: [
                               if (showDateSeparator) _buildDateSeparator(msg.createdAt),
                               Dismissible(
-                                key: ValueKey('dismiss_${msg.id}'),
+                                key: _messageKeys[msg.id] ??= GlobalKey(),
                                 direction: DismissDirection.startToEnd,
                                 confirmDismiss: (_) async {
                                   setState(() => _replyingToMessage = msg);
@@ -972,7 +1000,6 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                                 },
                                 background: Container(padding: const EdgeInsets.only(left: 20), alignment: Alignment.centerLeft, child: const Icon(Icons.reply, color: waTeal)),
                                 child: _ChatBubble(
-                                  key: _messageKeys[msg.id] ??= GlobalKey(),
                                   message: msg,
                                   isMe: isMe,
                                   onLongPress: _showMessageOptions,
@@ -1458,9 +1485,10 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sent: ${DateFormat('hh:mm:ss a, MMM dd').format(message.createdAt.toLocal())}'),
+            Text('Sent: ${_detailFormatter.format(message.createdAt.toLocal())}'),
             const SizedBox(height: 8),
             Text('Status: ${message.isRead ? "Read" : "Delivered"}'),
+            if (message.readAt != null) Text('Read: ${_detailFormatter.format(message.readAt!.toLocal())}'),
           ],
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
@@ -1502,7 +1530,14 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
 
   Widget _buildDialogContent(String type, String content, String fileName) {
     if (type == 'image') {
-      return InteractiveViewer(child: Image.network(AuthService().getFullUrl(content) ?? content));
+      return InteractiveViewer(
+        child: CachedNetworkImage(
+          imageUrl: AuthService().getFullUrl(content) ?? content,
+          placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+          errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey)),
+          fit: BoxFit.contain,
+        ),
+      );
     }
     return Center(child: Text(content));
   }
@@ -1513,7 +1548,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     final now = DateTime.now();
     if (_isSameDay(date, now)) return 'Today';
     if (_isSameDay(date, now.subtract(const Duration(days: 1)))) return 'Yesterday';
-    return DateFormat('MMM dd, yyyy').format(date);
+    return _dateFormatter.format(date);
   }
 }
 
@@ -1533,10 +1568,10 @@ class _ChatBubble extends StatelessWidget {
     required this.isMe, 
     required this.onLongPress, 
     required this.userName,
-    this.userRole,
     this.isHighlighted = false, 
     this.onReplyTap,
     this.onUploadRetry,
+    this.userRole,
   });
 
   @override
@@ -1547,17 +1582,23 @@ class _ChatBubble extends StatelessWidget {
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white54 : Colors.grey;
 
-    return AnimatedContainer(
+    return TweenAnimationBuilder<Color?>(
       duration: const Duration(milliseconds: 500),
-      color: isHighlighted ? (isDark ? Colors.white12 : Colors.black12) : Colors.transparent,
-      child: GestureDetector(
-        onLongPress: () => onLongPress(message),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+      tween: ColorTween(
+        begin: Colors.transparent,
+        end: isHighlighted ? (isDark ? const Color(0xFF00A884).withValues(alpha: 0.3) : const Color(0xFF00A884).withValues(alpha: 0.2)) : Colors.transparent,
+      ),
+      builder: (context, color, child) {
+        return Container(
+          color: color,
+          child: GestureDetector(
+            onLongPress: () => onLongPress(message),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Row(
+                mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
               if (!isMe)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2, right: 4),
@@ -1631,7 +1672,7 @@ class _ChatBubble extends StatelessWidget {
                         children: [
                           const SizedBox(width: 20), // Minimum space between text and meta
                           Text(
-                            DateFormat('hh:mm a').format(message.createdAt.toLocal()),
+                            _timeFormatter.format(message.createdAt.toLocal()),
                             style: TextStyle(fontSize: 10, color: subTextColor),
                           ),
                           if (isMe) ...[
@@ -1649,11 +1690,13 @@ class _ChatBubble extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
+          ), // end Row
+        ), // end Padding
+      ), // end GestureDetector
+    ); // end Container
+  }, // end builder
+); // end TweenAnimationBuilder
+}
 
   Widget _buildReplyContext(bool isDark) {
     final Color barColor = const Color(0xFF53BDEB);
@@ -1730,7 +1773,7 @@ class _ChatBubble extends StatelessWidget {
           isLocalUpload = exists;
         }
 
-        String _getThumbnailUrl(String url) {
+        String getThumbnailUrl(String url) {
           if (url.isEmpty) return url;
           if (url.contains('cloudinary.com/') || url.contains('thumb_') || url.contains('wsrv.nl')) return url;
           if (url.startsWith('http')) {
@@ -1739,10 +1782,23 @@ class _ChatBubble extends StatelessWidget {
           return url;
         }
 
-        if (isLocalUpload || isUnplayableVideo) {
+        if (isUploading) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          img = Shimmer.fromColors(
+            key: const ValueKey('skeleton'),
+            baseColor: isDark ? const Color(0xFF202C33) : const Color(0xFFE0E0E0),
+            highlightColor: isDark ? const Color(0xFF2C3943) : const Color(0xFFF5F5F5),
+            child: Container(
+              width: standardWidth,
+              height: 200,
+              color: Colors.white,
+            ),
+          );
+        } else if (isLocalUpload || isUnplayableVideo) {
           if (message.type == 'video') {
             // Local or unplayable video cannot be decoded as an image by Image.file / Image.network
             img = Container(
+              key: const ValueKey('video_placeholder'),
               width: standardWidth,
               height: 200,
               color: Colors.black12,
@@ -1750,6 +1806,7 @@ class _ChatBubble extends StatelessWidget {
             );
           } else {
             img = HighlyResilientImageWidget(
+              key: const ValueKey('local_image'),
               path: cleanedPath!,
               isLocal: true,
               width: standardWidth,
@@ -1772,13 +1829,22 @@ class _ChatBubble extends StatelessWidget {
             }
           }
           img = HighlyResilientImageWidget(
-            path: _getThumbnailUrl(AuthService().getFullUrl(displayUrl) ?? displayUrl),
+            key: const ValueKey('remote_image'),
+            path: getThumbnailUrl(AuthService().getFullUrl(displayUrl) ?? displayUrl),
             isLocal: false,
             width: standardWidth,
             height: 200,
             fit: BoxFit.cover,
           );
         }
+
+        final animatedImg = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          switchInCurve: Curves.easeIn,
+          switchOutCurve: Curves.easeOut,
+          child: img,
+        );
+
         media = GestureDetector(
           onTap: () {
             if (!isUploading && !isError) {
@@ -1797,7 +1863,7 @@ class _ChatBubble extends StatelessWidget {
               );
             }
           },
-          child: ClipRRect(borderRadius: BorderRadius.circular(12), child: img),
+          child: ClipRRect(borderRadius: BorderRadius.circular(12), child: animatedImg),
         );
         break;
       case 'audio':
@@ -1866,7 +1932,12 @@ class _ChatBubble extends StatelessWidget {
                       alignment: Alignment.center,
                       fit: StackFit.expand,
                       children: [
-                        Image.network(pUrl, fit: BoxFit.cover),
+                        CachedNetworkImage(
+                          imageUrl: pUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(color: Colors.grey[800]),
+                          errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
+                        ),
                         const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
                       ],
                     );
@@ -1988,10 +2059,10 @@ class _ChatBubble extends StatelessWidget {
                         height: 140,
                         child: isLocalDoc
                             ? LocalPdfThumbnailWidget(localPath: cleanedDocPath!, width: standardWidth, height: 140)
-                            : Image.network(
-                                AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
+                            : CachedNetworkImage(
+                                imageUrl: AuthService().getFullUrl(message.previewUrl!) ?? message.previewUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Container(
+                                errorWidget: (context, url, error) => Container(
                                   color: Colors.red.shade50,
                                   child: const Center(
                                     child: Icon(Icons.picture_as_pdf, size: 45, color: Color(0xFFE53935)),
@@ -2697,19 +2768,13 @@ class _HighlyResilientImageWidgetState extends State<HighlyResilientImageWidget>
         },
       );
     } else {
-      return Image.network(
-        widget.path,
-        key: ValueKey('network_${widget.path}'),
+      return CachedNetworkImage(
+        imageUrl: widget.path,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPlaceholder();
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildPlaceholder();
-        },
+        placeholder: (context, url) => _buildPlaceholder(),
+        errorWidget: (context, url, error) => _buildPlaceholder(),
       );
     }
   }

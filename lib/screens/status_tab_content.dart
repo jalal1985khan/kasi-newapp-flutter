@@ -4,7 +4,6 @@ import 'create_status_screen.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../services/auth_service.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class StatusTabContent extends StatefulWidget {
@@ -101,7 +100,7 @@ class StatusTabContentState extends State<StatusTabContent> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('Recent updates', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
           ),
-          ..._allStatuses.map((us) => _buildUserStatusTile(us)).toList(),
+          ..._allStatuses.map((us) => _buildUserStatusTile(us)),
         ],
       ),
     );

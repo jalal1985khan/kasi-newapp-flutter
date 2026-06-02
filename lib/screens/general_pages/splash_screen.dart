@@ -3,9 +3,6 @@ import 'dart:async';
 import '../../newsfeeds/home_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat/socket_service.dart';
-import '../admin/dashboard_screen.dart';
-import '../user/user_dashboard_screen.dart';
-import '../user/user_dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

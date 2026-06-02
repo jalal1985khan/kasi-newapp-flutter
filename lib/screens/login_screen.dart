@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'package:provider/provider.dart';
 import 'user/user_main_screen.dart';
 import 'admin/admin_main_screen.dart';
 import '../newsfeeds/home_screen.dart';
@@ -247,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildRoleDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedRole,
+      initialValue: _selectedRole,
       dropdownColor: const Color(0xFF202C33),
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(

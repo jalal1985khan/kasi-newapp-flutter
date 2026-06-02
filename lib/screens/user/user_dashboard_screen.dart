@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:gal/gal.dart';
 import 'common_widgets/user_layout.dart';
 import '../../services/employee/employee_service.dart';
 import '../../models/employee_me_response.dart';

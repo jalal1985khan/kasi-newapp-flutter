@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../models/status_model.dart';
 import '../services/auth_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CustomStatusView extends StatefulWidget {
   final List<UserStatuses> allUserStatuses;
@@ -220,13 +221,11 @@ class _CustomStatusViewState extends State<CustomStatusView> {
                   return Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.network(
-                        _authService.getFullUrl(status.content)!,
+                      CachedNetworkImage(
+                        imageUrl: _authService.getFullUrl(status.content)!,
                         fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(child: CircularProgressIndicator(color: Colors.white));
-                        },
+                        placeholder: (context, url) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                        errorWidget: (context, url, error) => const Icon(Icons.error, color: Colors.white),
                       ),
                       if (status.caption != null && status.caption!.isNotEmpty)
                         Positioned(
@@ -287,7 +286,7 @@ class _CustomStatusViewState extends State<CustomStatusView> {
                         CircleAvatar(
                           radius: 18,
                           backgroundImage: _userAvatar != null
-                              ? NetworkImage(_authService.getFullUrl(_userAvatar)!)
+                              ? CachedNetworkImageProvider(_authService.getFullUrl(_userAvatar)!)
                               : null,
                           child: _userAvatar == null ? Text(_userName[0]) : null,
                         ),

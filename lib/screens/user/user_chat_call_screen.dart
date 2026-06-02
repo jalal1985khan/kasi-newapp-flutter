@@ -100,10 +100,11 @@ class _UserChatCallScreenState extends State<UserChatCallScreen> with TickerProv
       }
     });
     _socketService.on('user:status_response', (data) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _onlineStatuses[data['userId']] = data['isOnline'] ?? false,
         );
+      }
     });
 
     _socketService.on('group:created', (data) {

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:twilio_programmable_video/twilio_programmable_video.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/chat/call_service.dart';
@@ -159,12 +158,23 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
     }
   }
 
+  void _markConnected() {
+    if (!_isActive && mounted) {
+      _startTimer();
+      setState(() {
+        _status = 'Connected';
+        _isActive = true;
+      });
+    }
+  }
+
   void _handleParticipant(RemoteParticipant participant) {
     // Handle existing tracks
     for (var pub in participant.remoteAudioTracks) {
       if (pub.remoteAudioTrack != null) {
         print('🔊 Existing audio track found from ${participant.identity}');
         pub.remoteAudioTrack?.enablePlayback(true);
+        _markConnected();
       }
     }
 
@@ -172,6 +182,7 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
     participant.onAudioTrackSubscribed.listen((event) {
       print('🔊 Subscribed to new audio track from ${participant.identity}');
       event.remoteAudioTrack.enablePlayback(true);
+      _markConnected();
     });
   }
 
@@ -248,10 +259,8 @@ class _CallOverlayState extends State<CallOverlay> with SingleTickerProviderStat
     _socketService.on('call:answered', (data) {
       if (mounted) {
         _stopSounds();
-        _startTimer();
         setState(() {
-          _status = 'Connected';
-          _isActive = true;
+          _status = 'Connecting...';
         });
       }
     });
@@ -661,6 +670,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   late Animation<double> _pulseAnim;
 
   bool _accepted = false;
+  bool _isConnected = false;
   bool _isSpeakerOn = true; // Default to speakerphone
   bool _isMinimized = false;
   Offset _minimizedPos = const Offset(20, 100);
@@ -690,6 +700,15 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     _localAudioTrack = null;
     _room?.disconnect();
     super.dispose();
+  }
+
+  void _markConnected() {
+    if (!_isConnected && mounted) {
+      _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _elapsedSeconds++);
+      });
+      setState(() => _isConnected = true);
+    }
   }
 
   // ── Twilio Call helpers (Receiver) ───────────────────────────────────────
@@ -742,6 +761,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
       if (pub.remoteAudioTrack != null) {
         print('🔊 Existing audio track found from ${participant.identity}');
         pub.remoteAudioTrack?.enablePlayback(true);
+        _markConnected();
       }
     }
 
@@ -749,6 +769,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     participant.onAudioTrackSubscribed.listen((event) {
       print('🔊 Subscribed to new audio track from ${participant.identity}');
       event.remoteAudioTrack.enablePlayback(true);
+      _markConnected();
     });
   }
 
@@ -823,9 +844,6 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     });
 
     setState(() => _accepted = true);
-    _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsedSeconds++);
-    });
     
     // Give AudioManager a moment to fully release the ringing stream focus
     await Future.delayed(const Duration(milliseconds: 400));
@@ -904,15 +922,17 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
               widget.callerName,
               style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, decoration: TextDecoration.none),
             ),
-            const SizedBox(height: 8),
+            // Status / Timer
             Text(
-              _accepted ? _timerLabel : 'Incoming Call...',
+              _isConnected
+                  ? _timerLabel
+                  : (_accepted ? 'Connecting...' : 'Incoming Call...'),
               style: TextStyle(
-                color: _accepted ? Colors.greenAccent : Colors.white60,
-                fontSize: _accepted ? 22 : 16,
-                fontWeight: _accepted ? FontWeight.bold : FontWeight.normal,
+                color: _isConnected ? Colors.greenAccent : Colors.white70,
+                fontSize: _isConnected ? 22 : 16,
+                fontWeight: _isConnected ? FontWeight.bold : FontWeight.normal,
                 decoration: TextDecoration.none,
-                letterSpacing: _accepted ? 2.0 : 0.0,
+                letterSpacing: _isConnected ? 2.0 : 0.0,
               ),
             ),
             const SizedBox(height: 60),
@@ -1016,7 +1036,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                 const Icon(Icons.call, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  _accepted ? _timerLabel : 'Incoming...',
+                  _isConnected ? _timerLabel : (_accepted ? 'Connecting...' : 'Incoming...'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

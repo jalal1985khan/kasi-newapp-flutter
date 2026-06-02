@@ -254,7 +254,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                                   ),
                                     ...dData.entries.map((e) => 
                                       _buildDynamicInfoRow(e.key.toString(), e.value.toString(), textColor, subTextColor)
-                                    ).toList(),
+                                    ),
                                 ],
                                 const SizedBox(height: 24),
                               ],

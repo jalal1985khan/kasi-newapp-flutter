@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +6,6 @@ import '../../utils/download_utils.dart';
 import 'package:spreadsheet_decoder/spreadsheet_decoder.dart';
 import '../../services/admin/admin_upload_service.dart';
 import 'admin_common_widgets/admin_layout.dart';
-import 'dart:developer' as dev;
 
 class BulkUserAddScreen extends StatefulWidget {
   const BulkUserAddScreen({super.key});
@@ -26,7 +24,7 @@ class _BulkUserAddScreenState extends State<BulkUserAddScreen> {
   bool _isUploading = false;
   bool _isDownloadingSample = false;
   String? _dialogFeedbackMessage;
-  bool _isFeedbackError = false;
+  final bool _isFeedbackError = false;
   static const int _maxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
 
   Future<void> _onRefresh() async {
@@ -192,7 +190,7 @@ class _BulkUserAddScreenState extends State<BulkUserAddScreen> {
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
-                          headingRowColor: MaterialStateProperty.all(isDark ? const Color(0xFF202C33) : Colors.grey[200]),
+                          headingRowColor: WidgetStateProperty.all(isDark ? const Color(0xFF202C33) : Colors.grey[200]),
                           columns: headers.map((h) => DataColumn(label: Text(h, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)))).toList(),
                           rows: rows.map((r) => DataRow(cells: r.map((cell) => DataCell(Text(cell, style: TextStyle(color: subTextColor)))).toList())).toList(),
                         ),

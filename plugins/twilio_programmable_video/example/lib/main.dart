@@ -32,14 +32,19 @@ class TwilioProgrammableVideoExample extends StatelessWidget {
               theme: ThemeData(
                 primarySwatch: Colors.blue,
                 appBarTheme: AppBarTheme(
-                  color: Colors.blue,
-                  textTheme: TextTheme(
-                    headline6: TextStyle(
+                  backgroundColor: Colors.blue, toolbarTextStyle: TextTheme(
+                    titleLarge: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w500,
                       color: Colors.white,
                     ),
-                  ),
+                  ).bodyMedium, titleTextStyle: TextTheme(
+                    titleLarge: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ).titleLarge,
                 ),
               ),
               home: JoinRoomPage(),

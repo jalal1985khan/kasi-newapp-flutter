@@ -247,7 +247,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   
                   if (tx['dynamicData'] != null && (tx['dynamicData'] as Map).isNotEmpty) ...[
                     _buildSectionLabel('Snapshot Data (C11+)', isDark ? Colors.white24 : Colors.black26),
-                    ...(tx['dynamicData'] as Map).entries.map((e) => _buildDetailTile(e.key, e.value.toString(), cardBg, textColor, subTextColor)).toList(),
+                    ...(tx['dynamicData'] as Map).entries.map((e) => _buildDetailTile(e.key, e.value.toString(), cardBg, textColor, subTextColor)),
                   ],
                 ],
               ),

@@ -3,15 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:universal_file_viewer/universal_file_viewer.dart';
 import 'package:news_cover/services/auth_service.dart';
 import 'package:news_cover/services/dio_client.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
 import 'package:dio/dio.dart';
 import 'package:news_cover/services/api_constants.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'pdf_viewer_widget.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String url;
@@ -172,7 +171,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       if (_absoluteUrl.contains('res.cloudinary.com') && widget.fileName?.toLowerCase().endsWith('.pdf') == true) {
         if (_absoluteUrl.toLowerCase().endsWith('.png') || _absoluteUrl.toLowerCase().endsWith('.jpg')) {
           debugPrint("🔄 Rewriting Cloudinary URL to fetch original multi-page PDF instead of PNG thumbnail.");
-          _absoluteUrl = _absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.')) + '.pdf';
+          _absoluteUrl = '${_absoluteUrl.substring(0, _absoluteUrl.lastIndexOf('.'))}.pdf';
         }
       }
     }
@@ -514,21 +513,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                     ? InteractiveViewer(
                         minScale: 0.5,
                         maxScale: 4.0,
-                        child: Image.network(
-                          _absoluteUrl,
+                        child: CachedNetworkImage(
+                          imageUrl: _absoluteUrl,
                           fit: BoxFit.contain,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Center(
-                              child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                    : null,
-                                color: const Color(0xFF00A884),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) => const Column(
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(color: Color(0xFF00A884)),
+                          ),
+                          errorWidget: (context, url, error) => const Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.error_outline, color: Colors.red, size: 48),

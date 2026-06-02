@@ -28,7 +28,7 @@ class AdminMainScreen extends StatefulWidget {
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => AdminMainScreen(initialIndex: index),
+          pageBuilder: (_, _, _) => AdminMainScreen(initialIndex: index),
           transitionDuration: Duration.zero,
         ),
       );

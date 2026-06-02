@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'user_drawer.dart';
-import 'user_bottom_navigationbar.dart';
 
 class UserLayout extends StatelessWidget {
   final String? title;

@@ -30,7 +30,7 @@ class GroupChatService {
         data: {
           'name': name,
           'memberIds': memberIds,
-          if (description != null) 'description': description,
+          'description': ?description,
         },
         options: await _authOptions(),
       );

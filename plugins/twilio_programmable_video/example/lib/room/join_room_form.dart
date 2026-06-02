@@ -117,8 +117,8 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
       progressHeight: 2,
       child: TextButton(
         key: Key('join-button'),
-        style: ButtonStyle(backgroundColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.disabled)) {
+        style: ButtonStyle(backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.disabled)) {
             return Colors.grey.shade300;
           } else {
             return Theme.of(context).appBarTheme.color ?? Theme.of(context).primaryColor;

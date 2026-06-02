@@ -33,7 +33,7 @@ class StatusService {
         'content': content,
         'type': type,
         'caption': caption,
-        if (originalUrl != null) 'originalUrl': originalUrl,
+        'originalUrl': ?originalUrl,
       });
       return response.data['success'] == true;
     } catch (e) {

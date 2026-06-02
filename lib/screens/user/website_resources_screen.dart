@@ -90,11 +90,11 @@ class _UserWebsiteResourcesScreenState extends State<UserWebsiteResourcesScreen>
                         children: [
                           IconButton(
                             icon: Icon(Icons.arrow_back_ios, size: 20, color: textColor),
-                            onPressed: isSupported && controller != null ? () async => (await controller!.canGoBack()) ? await controller!.goBack() : null : null,
+                            onPressed: isSupported && controller != null ? () async => (await controller!.canGoBack()) ? await controller.goBack() : null : null,
                           ),
                           IconButton(
                             icon: Icon(Icons.arrow_forward_ios, size: 20, color: textColor),
-                            onPressed: isSupported && controller != null ? () async => (await controller!.canGoForward()) ? await controller!.goForward() : null : null,
+                            onPressed: isSupported && controller != null ? () async => (await controller!.canGoForward()) ? await controller.goForward() : null : null,
                           ),
                         ],
                       ),
@@ -111,7 +111,7 @@ class _UserWebsiteResourcesScreenState extends State<UserWebsiteResourcesScreen>
                             bottomLeft: Radius.circular(16),
                             bottomRight: Radius.circular(16),
                           ),
-                          child: WebViewWidget(controller: controller!),
+                          child: WebViewWidget(controller: controller),
                         )
                       : Center(
                           child: Text(
