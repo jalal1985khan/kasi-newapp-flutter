@@ -12,6 +12,8 @@ import '../../utils/premium_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../services/update/update_service.dart';
+import 'package:ota_update/ota_update.dart';
 
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({super.key});
@@ -49,6 +51,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadInitialData();
+    _checkAppUpdate(); // Trigger OTA update check asynchronously
     _scrollController.addListener(_onScroll);
   }
 
@@ -755,6 +758,320 @@ class _PremiumRecordCardState extends State<_PremiumRecordCard> {
           ],
         ),
       ),
+    );
+  }
+
+  void _checkAppUpdate() async {
+    // Only check for updates on Android, as OTA updates are designed for Android APKs
+    if (!Platform.isAndroid) return;
+    
+    // Check version
+    final result = await UpdateService.checkUpdate();
+    if (result.isUpdateAvailable && result.latestRelease != null && mounted) {
+      _showUpdateDialog(result.latestRelease!);
+    }
+  }
+
+  void _showUpdateDialog(AppReleaseInfo release) {
+    double downloadProgress = 0.0;
+    String statusMessage = "Downloading...";
+    bool isDownloading = false;
+    bool hasFailed = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Elegant Header Icon
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E7FF),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.system_update_rounded,
+                        color: Color(0xFF4F46E5),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Title
+                    const Text(
+                      "Update Available",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    
+                    // Version differences
+                    Text(
+                      "v${release.version} (Build ${release.buildNumber})",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (!isDownloading && !hasFailed) ...[
+                      // Release notes section
+                      if (release.releaseNotes.isNotEmpty) ...[
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "What's New:",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.extrabold,
+                              color: Color(0xFF64748B),
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          maxHeight: 100,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFF1F5F9)),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              release.releaseNotes,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF475569),
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      
+                      // Size warning
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.info_outline, size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Text(
+                            "File Size: ${(release.apkFileSize / (1024 * 1024)).toStringAsFixed(1)} MB",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text(
+                                "Later",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F46E5),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              onPressed: () {
+                                setDialogState(() {
+                                  isDownloading = true;
+                                  statusMessage = "Downloading...";
+                                });
+                                
+                                // Start OTA update stream
+                                UpdateService.startOtaUpdate(
+                                  release.apkUrl,
+                                  release.apkFileName,
+                                ).listen(
+                                  (OtaEvent event) {
+                                    setDialogState(() {
+                                      switch (event.status) {
+                                        case OtaStatus.DOWNLOADING:
+                                          statusMessage = "Downloading...";
+                                          downloadProgress = double.tryParse(event.value ?? '0') ?? 0.0;
+                                          break;
+                                        case OtaStatus.INSTALLING:
+                                          statusMessage = "Installing update...";
+                                          downloadProgress = 100.0;
+                                          // Automatically pop dialog since installer overlay is launching
+                                          Future.delayed(const Duration(seconds: 1), () {
+                                            if (mounted) Navigator.of(context).pop();
+                                          });
+                                          break;
+                                        case OtaStatus.ALREADY_CHOSEN_THE_PREVIOUS_VERSION:
+                                          hasFailed = true;
+                                          statusMessage = "Already running the latest version.";
+                                          break;
+                                        case OtaStatus.PERMISSION_DENIED:
+                                          hasFailed = true;
+                                          statusMessage = "Install permissions denied.";
+                                          break;
+                                        default:
+                                          hasFailed = true;
+                                          statusMessage = "Update failed: ${event.internalMessage ?? 'Unknown error'}";
+                                          break;
+                                      }
+                                    });
+                                  },
+                                  onError: (error) {
+                                    setDialogState(() {
+                                      hasFailed = true;
+                                      statusMessage = "Error: $error";
+                                    });
+                                  },
+                                );
+                              },
+                              child: const Text(
+                                "Update Now",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      // Downloading/Installing/Error State
+                      const SizedBox(height: 10),
+                      
+                      // Progress bar / Indicator
+                      if (!hasFailed) ...[
+                        SizedBox(
+                          height: 8,
+                          width: double.infinity,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: downloadProgress / 100.0,
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "${downloadProgress.toStringAsFixed(0)}%",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ] else ...[
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 40,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      
+                      const SizedBox(height: 8),
+                      Text(
+                        statusMessage,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: hasFailed ? const Color(0xFFEF4444) : const Color(0xFF64748B),
+                        ),
+                      ),
+                      
+                      if (hasFailed) ...[
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4F46E5),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text(
+                              "Close",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
