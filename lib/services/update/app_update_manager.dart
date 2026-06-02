@@ -26,11 +26,19 @@ class AppUpdateManager {
   /// Polls the server, compares build numbers, and shows the update dialog
   /// if a newer version is available. Safe to call from any screen / any auth state.
   Future<void> checkAndShow() async {
-    if (!Platform.isAndroid) return;
-    if (_isDialogOpen) return;
+    debugPrint('[AppUpdateManager] checkAndShow called. isAndroid: ${Platform.isAndroid}');
+    if (!Platform.isAndroid) {
+      debugPrint('[AppUpdateManager] Skipping check: platform is not Android.');
+      return;
+    }
+    if (_isDialogOpen) {
+      debugPrint('[AppUpdateManager] Skipping check: dialog is already open.');
+      return;
+    }
 
     try {
       final result = await UpdateService.checkUpdate();
+      debugPrint('[AppUpdateManager] checkUpdate result: isUpdateAvailable=${result.isUpdateAvailable}, latestRelease version=${result.latestRelease?.version}, build=${result.latestRelease?.buildNumber}');
       if (result.isUpdateAvailable && result.latestRelease != null) {
         _showDialog(result.latestRelease!);
       }
@@ -43,6 +51,7 @@ class AppUpdateManager {
   /// Called when a real-time socket event fires with a release payload.
   /// Validates locally before showing dialog.
   Future<void> showFromRelease(Map<String, dynamic> releaseData) async {
+    debugPrint('[AppUpdateManager] showFromRelease called with payload: $releaseData. isAndroid: ${Platform.isAndroid}');
     if (!Platform.isAndroid) return;
     if (_isDialogOpen) return;
 
@@ -51,6 +60,7 @@ class AppUpdateManager {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
+      debugPrint('[AppUpdateManager] showFromRelease check: releaseBuild=${release.buildNumber}, currentBuild=$currentBuild, isSelfUpdateEnabled=${release.isSelfUpdateEnabled}');
       if (release.isSelfUpdateEnabled && release.buildNumber > currentBuild) {
         _showDialog(release);
       }
@@ -63,9 +73,20 @@ class AppUpdateManager {
   // Dialog — identical compulsory UI, shown via global navigator
   // ─────────────────────────────────────────────────────────────────────────
 
-  void _showDialog(AppReleaseInfo release) {
+  void _showDialog(AppReleaseInfo release, {int retryCount = 0}) {
     final context = navigatorKey.currentContext;
-    if (context == null) return;
+    debugPrint('[AppUpdateManager] _showDialog called. context exists: ${context != null}, _isDialogOpen: $_isDialogOpen, retry: $retryCount');
+    if (context == null) {
+      if (retryCount < 6) {
+        debugPrint('[AppUpdateManager] Navigator context is null. Retrying in 2 seconds...');
+        Future.delayed(const Duration(seconds: 2), () {
+          _showDialog(release, retryCount: retryCount + 1);
+        });
+      } else {
+        debugPrint('[AppUpdateManager] Failed to show dialog: navigator context remained null after multiple retries.');
+      }
+      return;
+    }
     if (_isDialogOpen) return;
     _isDialogOpen = true;
 
