@@ -184,6 +184,37 @@ class _GroupChatPageState extends State<GroupChatPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
+  List<ChatMessage> _preserveLocalState(List<ChatMessage> freshMessages) {
+    final tempMessages = <String, ChatMessage>{};
+    final activeTempUploads = <ChatMessage>[];
+    for (final m in _messages) {
+      if (m.localPath != null) {
+        tempMessages[m.id] = m;
+      }
+      if (m.id.startsWith('temp_')) {
+        activeTempUploads.add(m);
+      }
+    }
+    
+    for (int i = 0; i < freshMessages.length; i++) {
+      final existing = tempMessages[freshMessages[i].id];
+      if (existing != null) {
+        freshMessages[i] = freshMessages[i].copyWith(
+          localPath: existing.localPath,
+          uploadStatus: existing.uploadStatus,
+          uploadProgress: existing.uploadProgress,
+        );
+      }
+    }
+    for (final tempMsg in activeTempUploads) {
+      if (!freshMessages.any((m) => m.id == tempMsg.id)) {
+        freshMessages.insert(0, tempMsg);
+      }
+    }
+    freshMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return freshMessages;
+  }
+
   Future<void> _loadFromLocalDB() async {
     try {
       final cached = await _db.getMessagesByConversation(widget.groupId);
