@@ -13,7 +13,7 @@ class FCMService {
   factory FCMService() => _instance;
   FCMService._internal();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localMsg = FlutterLocalNotificationsPlugin();
   final _storage = const FlutterSecureStorage();
 
