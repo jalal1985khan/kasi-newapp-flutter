@@ -202,4 +202,40 @@ class UpdateService {
       rethrow;
     }
   }
+
+  /// Returns the resolved version for display, taking the highest between the binary version and cached update version.
+  static Future<String> getResolvedVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+
+      final prefs = await SharedPreferences.getInstance();
+      int lastInstalledBuild = prefs.getInt('last_installed_release_build') ?? 0;
+      String lastInstalledVersion = prefs.getString('last_installed_release_version') ?? '';
+
+      try {
+        final dbService = LocalDatabaseService();
+        final dbBuildStr = await dbService.getMetadata('last_installed_release_build');
+        final dbVer = await dbService.getMetadata('last_installed_release_version');
+        if (dbBuildStr != null) {
+          final dbBuild = int.tryParse(dbBuildStr) ?? 0;
+          if (dbBuild > lastInstalledBuild) {
+            lastInstalledBuild = dbBuild;
+          }
+        }
+        if (dbVer != null && dbVer.isNotEmpty) {
+          lastInstalledVersion = dbVer;
+        }
+      } catch (_) {}
+
+      // If binary build or version is greater or equal to cached, use binary.
+      if (currentBuild >= lastInstalledBuild || isVersionGreaterOrEqual(currentVersion, lastInstalledVersion)) {
+        return currentVersion;
+      }
+      return lastInstalledVersion.isNotEmpty ? lastInstalledVersion : currentVersion;
+    } catch (_) {
+      return '8.0.1';
+    }
+  }
 }
