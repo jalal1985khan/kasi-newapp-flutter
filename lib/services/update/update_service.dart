@@ -147,6 +147,8 @@ class UpdateService {
           print('[UpdateService] Failed to read version from SQLite DB: $e');
         }
 
+        print('[UpdateService] Resolved cached versions: SharedPreferences/SQLite lastInstalledBuild=$lastInstalledBuild, lastInstalledVersion=$lastInstalledVersion');
+
         final isUpdated = isAlreadyUpdated(
           currentVersion: currentVersion,
           currentBuild: currentBuild,
