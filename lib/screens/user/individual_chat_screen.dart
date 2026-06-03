@@ -863,16 +863,33 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
 
 
   void _scrollToMessage(String messageId) async {
-    while (_messageKeys[messageId]?.currentContext == null && _hasMore) {
+    int index = _messages.indexWhere((m) => m.id == messageId);
+    while (index == -1 && _hasMore) {
       await _loadMoreMessages();
       await Future.delayed(const Duration(milliseconds: 100));
+      index = _messages.indexWhere((m) => m.id == messageId);
+    }
+
+    if (index == -1) {
+      debugPrint('⚠️ Message not found in conversation history: $messageId');
+      return;
     }
 
     final key = _messageKeys[messageId];
+    if (key?.currentContext == null && _scrollController.hasClients) {
+      final double estimatedOffset = index * 120.0;
+      await _scrollController.animateTo(
+        estimatedOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
+
     if (key?.currentContext != null) {
       await Scrollable.ensureVisible(
         key!.currentContext!,
-        duration: const Duration(milliseconds: 500),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: 0.5,
       );

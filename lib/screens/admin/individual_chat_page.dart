@@ -982,53 +982,37 @@ class _IndividualChatPageState extends State<IndividualChatPage> {
 
 
   void _scrollToMessage(String messageId) async {
-    // Step 1: Try direct scroll if the widget is already rendered
+    int index = _messages.indexWhere((m) => m.id == messageId);
+    while (index == -1 && _hasMore) {
+      await _loadMoreMessages();
+      await Future.delayed(const Duration(milliseconds: 100));
+      index = _messages.indexWhere((m) => m.id == messageId);
+    }
+
+    if (index == -1) {
+      debugPrint('⚠️ Message not found in conversation history: $messageId');
+      return;
+    }
+
     final key = _messageKeys[messageId];
+    if (key?.currentContext == null && _scrollController.hasClients) {
+      final double estimatedOffset = index * 120.0;
+      await _scrollController.animateTo(
+        estimatedOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
+
     if (key?.currentContext != null) {
       await Scrollable.ensureVisible(
         key!.currentContext!,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-        alignment: 0.5, // center it in the viewport
-      );
-      _flashHighlight(messageId);
-      return;
-    }
-
-    // Step 2: Widget is not rendered yet (virtualised). Find its index
-    // and scroll the controller to bring it into view, then retry.
-    final idx = _messages.indexWhere((m) => m.id == messageId);
-    if (idx == -1) {
-      debugPrint('⚠️ Message not found in list: $messageId');
-      return;
-    }
-
-    // In a reversed ListView, item 0 is at the bottom, so we need to
-    // convert: scrollable index = idx (reversed list already handles order).
-    if (_scrollController.hasClients) {
-      // Estimate scroll offset — approximately 72px per message row
-      final estimatedOffset = idx * 72.0;
-      await _scrollController.animateTo(
-        estimatedOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOut,
-      );
-    }
-
-    // Step 3: Wait one frame for ListView.builder to render the item
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    final retryKey = _messageKeys[messageId];
-    if (retryKey?.currentContext != null) {
-      await Scrollable.ensureVisible(
-        retryKey!.currentContext!,
         duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
+        curve: Curves.easeInOut,
         alignment: 0.5,
       );
       _flashHighlight(messageId);
-    } else {
-      debugPrint('⚠️ Message still not visible after scroll: $messageId');
     }
   }
 

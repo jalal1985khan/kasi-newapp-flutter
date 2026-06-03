@@ -754,39 +754,36 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Future<void> _scrollToMessage(String messageId) async {
-    // Step 1: Message is already rendered
-    final key = _msgKeys[messageId];
-    final ctx = key?.currentContext;
-    if (ctx != null) {
-      await Scrollable.ensureVisible(ctx,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-          alignment: 0.5);
-      _flashHighlight(messageId);
+    int index = _messages.indexWhere((m) => m.id == messageId);
+    while (index == -1 && _hasMore) {
+      await _loadMoreMessages();
+      await Future.delayed(const Duration(milliseconds: 100));
+      index = _messages.indexWhere((m) => m.id == messageId);
+    }
+
+    if (index == -1) {
+      debugPrint('⚠️ Message not found in conversation history: $messageId');
       return;
     }
 
-    // Step 2: Message is virtualized — scroll to estimated offset then retry
-    final idx = _messages.indexWhere((m) => m.id == messageId);
-    if (idx == -1) return;
-
-    if (_scrollCtrl.hasClients) {
-      final estimatedOffset = idx * 72.0;
+    final key = _msgKeys[messageId];
+    if (key?.currentContext == null && _scrollCtrl.hasClients) {
+      final double estimatedOffset = index * 120.0;
       await _scrollCtrl.animateTo(
         estimatedOffset.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+      await Future.delayed(const Duration(milliseconds: 150));
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    final retryCtx = _msgKeys[messageId]?.currentContext;
-    if (retryCtx != null) {
-      await Scrollable.ensureVisible(retryCtx,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          alignment: 0.5);
+    if (key?.currentContext != null) {
+      await Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
       _flashHighlight(messageId);
     }
   }
