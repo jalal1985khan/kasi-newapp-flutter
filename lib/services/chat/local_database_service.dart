@@ -23,7 +23,7 @@ class LocalDatabaseService {
     String path = join(documentsDirectory.path, 'chat_database.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -44,7 +44,7 @@ class LocalDatabaseService {
         // Ignore if columns already exist
       }
     }
-    if (oldVersion < 3) {
+    if (oldVersion < 4) {
       try {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS app_metadata (
@@ -52,8 +52,9 @@ class LocalDatabaseService {
             value TEXT
           )
         ''');
+        print('[LocalDatabaseService] Successfully created app_metadata table during upgrade.');
       } catch (e) {
-        // Ignore if already exists
+        print('[LocalDatabaseService] Error creating app_metadata table: $e');
       }
     }
   }
@@ -238,27 +239,34 @@ class LocalDatabaseService {
   // ======================
 
   Future<void> saveMetadata(String key, String value) async {
-    final db = await database;
-    await db.insert(
-      'app_metadata',
-      {'key': key, 'value': value},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    try {
+      final db = await database;
+      await db.insert(
+        'app_metadata',
+        {'key': key, 'value': value},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('[LocalDatabaseService] Successfully saved metadata: $key = $value');
+    } catch (e) {
+      print('[LocalDatabaseService] Error saving metadata for $key = $value: $e');
+    }
   }
 
   Future<String?> getMetadata(String key) async {
-    final db = await database;
     try {
+      final db = await database;
       final List<Map<String, dynamic>> maps = await db.query(
         'app_metadata',
         where: 'key = ?',
         whereArgs: [key],
       );
       if (maps.isNotEmpty) {
-        return maps.first['value'] as String?;
+        final val = maps.first['value'] as String?;
+        print('[LocalDatabaseService] Loaded metadata: $key = $val');
+        return val;
       }
-    } catch (_) {
-      // In case table is not created yet
+    } catch (e) {
+      print('[LocalDatabaseService] Error loading metadata for $key: $e');
     }
     return null;
   }
