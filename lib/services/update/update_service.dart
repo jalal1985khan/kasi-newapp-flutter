@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../dio_client.dart';
+import '../chat/local_database_service.dart';
 
 class AppReleaseInfo {
   final String id;
@@ -125,8 +126,26 @@ class UpdateService {
         // - Uploader enabled dynamic self update toggling (isSelfUpdateEnabled is true)
         // - The app is not already updated
         final prefs = await SharedPreferences.getInstance();
-        final lastInstalledBuild = prefs.getInt('last_installed_release_build') ?? 0;
-        final lastInstalledVersion = prefs.getString('last_installed_release_version') ?? '';
+        int lastInstalledBuild = prefs.getInt('last_installed_release_build') ?? 0;
+        String lastInstalledVersion = prefs.getString('last_installed_release_version') ?? '';
+
+        try {
+          final dbService = LocalDatabaseService();
+          final dbBuildStr = await dbService.getMetadata('last_installed_release_build');
+          final dbVer = await dbService.getMetadata('last_installed_release_version');
+          
+          if (dbBuildStr != null) {
+            final dbBuild = int.tryParse(dbBuildStr) ?? 0;
+            if (dbBuild > lastInstalledBuild) {
+              lastInstalledBuild = dbBuild;
+            }
+          }
+          if (dbVer != null && dbVer.isNotEmpty) {
+            lastInstalledVersion = dbVer;
+          }
+        } catch (e) {
+          print('[UpdateService] Failed to read version from SQLite DB: $e');
+        }
 
         final isUpdated = isAlreadyUpdated(
           currentVersion: currentVersion,

@@ -7,6 +7,7 @@ import 'common_widgets/user_layout.dart';
 import '../../utils/premium_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../services/chat/local_database_service.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -33,10 +34,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _loadAppVersion() async {
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
+      final prefs = await SharedPreferences.getInstance();
+      String ver = prefs.getString('last_installed_release_version') ?? '';
+      
+      if (ver.isEmpty) {
+        try {
+          final dbService = LocalDatabaseService();
+          final dbVer = await dbService.getMetadata('last_installed_release_version');
+          if (dbVer != null && dbVer.isNotEmpty) {
+            ver = dbVer;
+          }
+        } catch (_) {}
+      }
+
+      if (ver.isEmpty) {
+        final packageInfo = await PackageInfo.fromPlatform();
+        ver = packageInfo.version;
+      }
+
       if (mounted) {
         setState(() {
-          _appVersion = 'App Version ${packageInfo.version}';
+          _appVersion = 'App Version $ver';
         });
       }
     } catch (e) {

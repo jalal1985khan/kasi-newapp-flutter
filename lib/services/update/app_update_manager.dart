@@ -5,6 +5,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'update_service.dart';
+import '../chat/local_database_service.dart';
 import '../../main.dart' show navigatorKey;
 
 /// Global singleton that checks for app updates and shows the compulsory
@@ -111,13 +112,26 @@ class AppUpdateManager {
     bool hasFailed = false;
     StreamSubscription<OtaEvent>? subscription;
 
-    void triggerDownload(StateSetter setDialogState) {
+    void triggerDownload(StateSetter setDialogState) async {
       setDialogState(() {
         isDownloading = true;
         hasFailed = false;
         downloadProgress = 0.0;
         statusMessage = 'Downloading...';
       });
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_installed_release_build', release.buildNumber);
+        await prefs.setString('last_installed_release_version', release.version);
+        
+        final dbService = LocalDatabaseService();
+        await dbService.saveMetadata('last_installed_release_build', release.buildNumber.toString());
+        await dbService.saveMetadata('last_installed_release_version', release.version);
+        debugPrint('[AppUpdateManager] Pre-saved release build ${release.buildNumber} (${release.version}) to SharedPreferences and SQLite DB.');
+      } catch (e) {
+        debugPrint('[AppUpdateManager] Failed to pre-save release info: $e');
+      }
 
       subscription?.cancel();
       subscription = UpdateService.startOtaUpdate(

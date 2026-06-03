@@ -23,7 +23,7 @@ class LocalDatabaseService {
     String path = join(documentsDirectory.path, 'chat_database.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -42,6 +42,18 @@ class LocalDatabaseService {
         await db.execute('ALTER TABLE messages ADD COLUMN localPath TEXT');
       } catch (e) {
         // Ignore if columns already exist
+      }
+    }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS app_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
+          )
+        ''');
+      } catch (e) {
+        // Ignore if already exists
       }
     }
   }
@@ -97,6 +109,14 @@ class LocalDatabaseService {
     // Indexes for faster querying
     await db.execute('CREATE INDEX idx_messages_conversationId ON messages (conversationId)');
     await db.execute('CREATE INDEX idx_messages_createdAt ON messages (createdAt DESC)');
+
+    // Create Metadata Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
   }
 
   // ======================
@@ -211,5 +231,35 @@ class LocalDatabaseService {
     final db = await database;
     await db.delete('messages');
     await db.delete('conversations');
+  }
+
+  // ======================
+  // METADATA CRUD
+  // ======================
+
+  Future<void> saveMetadata(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      'app_metadata',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> getMetadata(String key) async {
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> maps = await db.query(
+        'app_metadata',
+        where: 'key = ?',
+        whereArgs: [key],
+      );
+      if (maps.isNotEmpty) {
+        return maps.first['value'] as String?;
+      }
+    } catch (_) {
+      // In case table is not created yet
+    }
+    return null;
   }
 }

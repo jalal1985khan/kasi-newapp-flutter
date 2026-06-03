@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/chat/local_database_service.dart';
 import '../../screens/login_screen.dart';
 import '../../services/auth_service.dart';
 import '../../screens/admin/admin_main_screen.dart';
@@ -27,14 +29,36 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
 
   Future<void> _loadAppVersion() async {
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
+      final prefs = await SharedPreferences.getInstance();
+      String ver = prefs.getString('last_installed_release_version') ?? '';
+      
+      if (ver.isEmpty) {
+        try {
+          final dbService = LocalDatabaseService();
+          final dbVer = await dbService.getMetadata('last_installed_release_version');
+          if (dbVer != null && dbVer.isNotEmpty) {
+            ver = dbVer;
+          }
+        } catch (_) {}
+      }
+
+      if (ver.isEmpty) {
+        final packageInfo = await PackageInfo.fromPlatform();
+        ver = packageInfo.version;
+      }
+
       if (mounted) {
         setState(() {
-          _appVersion = 'v${packageInfo.version}';
+          _appVersion = 'v$ver';
         });
       }
     } catch (e) {
       debugPrint('Error loading app version in SecretAdminTap: $e');
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v8.0.1';
+        });
+      }
     }
   }
 
