@@ -5,8 +5,8 @@ class ApiConstants {
 
   // For local testing, use your machine's IP (e.g. http://192.168.1.100:3000)
 //  Live Mode
-  static const String baseUrl = 'https://test.yugsatya.com/';
-  static const String socketUrl = 'https://test.yugsatya.com/';
+  static const String baseUrl = 'https://admin.yugsatya.com/';
+  static const String socketUrl = 'https://admin.yugsatya.com/';
 
 // Local Testing Endpoint
   // static const String baseUrl = 'http://192.168.1.38:3000/';
