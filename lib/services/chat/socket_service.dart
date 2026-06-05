@@ -175,6 +175,12 @@ class SocketService with WidgetsBindingObserver {
         _onForceLogout!(msg);
       }
     });
+
+    socket!.on('app:update_available', (data) {
+      if (_onAppUpdateAvailable != null) {
+        _onAppUpdateAvailable!(data);
+      }
+    });
   }
 
   final Map<String, List<Function(dynamic)>> _listeners = {};
@@ -192,6 +198,11 @@ class SocketService with WidgetsBindingObserver {
   Function(String)? _onForceLogout;
   void setForceLogoutHandler(Function(String) handler) {
     _onForceLogout = handler;
+  }
+
+  Function(dynamic)? _onAppUpdateAvailable;
+  void setAppUpdateHandler(Function(dynamic) handler) {
+    _onAppUpdateAvailable = handler;
   }
 
   void disconnect() {

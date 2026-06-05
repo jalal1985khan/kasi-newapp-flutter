@@ -161,7 +161,7 @@ void _initBackgroundServices() {
 
   // Real-time update push via socket: fired when admin publishes a new release.
   // Registered globally so it works on ANY screen, logged-in or not.
-  SocketService().on('app:update_available', (data) {
+  SocketService().setAppUpdateHandler((data) {
     if (data != null && data['release'] != null) {
       AppUpdateManager().showFromRelease(
         Map<String, dynamic>.from(data['release'] as Map),
@@ -178,7 +178,7 @@ class MyApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return MaterialApp(
-      title: 'Daily News',
+      title: 'Yug Satya News',
       debugShowCheckedModeBanner: false,
       scrollBehavior: PremiumScrollBehavior(),
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
