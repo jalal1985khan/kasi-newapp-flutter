@@ -1,6 +1,6 @@
 {
-    "name": "Daily news",
-    "short_name": "Daily news",
+    "name": "Yug Satya News",
+    "short_name": "Yug Satya News",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

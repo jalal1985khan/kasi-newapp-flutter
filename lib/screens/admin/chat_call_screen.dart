@@ -376,7 +376,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           child: Text(
-                            'CONTACTS ON DAILY NEWS',
+                            'CONTACTS ON Yug Satya News',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -617,7 +617,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                   child: Text(
-                    'CONTACTS ON DAILY NEWS',
+                    'CONTACTS ON Yug Satya News',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -988,7 +988,7 @@ class _ChatCallScreenState extends State<ChatCallScreen> with TickerProviderStat
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                       child: Text(
-                        'CONTACTS ON DAILY NEWS',
+                        'CONTACTS ON Yug Satya News',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
