@@ -77,15 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 150,
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Daily News',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A73E8),
-                  letterSpacing: 1.2,
-                ),
-              ),
+
               const SizedBox(height: 16),
               const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1A73E8)),
