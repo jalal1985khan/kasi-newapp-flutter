@@ -182,8 +182,8 @@ class UpdateService {
       } catch (_) {
         return UpdateCheckResult(
           isUpdateAvailable: false,
-          currentVersion: '8.0.1',
-          currentBuildNumber: 10,
+          currentVersion: '',
+          currentBuildNumber: 0,
         );
       }
     }
@@ -231,11 +231,11 @@ class UpdateService {
 
       // If binary build or version is greater or equal to cached, use binary.
       if (currentBuild >= lastInstalledBuild || isVersionGreaterOrEqual(currentVersion, lastInstalledVersion)) {
-        return currentVersion;
+        return currentVersion.isNotEmpty ? '$currentVersion+$currentBuild' : '';
       }
-      return lastInstalledVersion.isNotEmpty ? lastInstalledVersion : currentVersion;
+      return lastInstalledVersion.isNotEmpty ? '$lastInstalledVersion+$lastInstalledBuild' : (currentVersion.isNotEmpty ? '$currentVersion+$currentBuild' : '');
     } catch (_) {
-      return '8.0.1';
+      return '';
     }
   }
 }

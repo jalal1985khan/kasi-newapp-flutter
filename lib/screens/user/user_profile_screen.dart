@@ -24,7 +24,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   auth_models.User? _user;
   bool _isUploadingImage = false;
-  String _appVersion = 'Loading...';
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -38,14 +38,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final ver = await UpdateService.getResolvedVersion();
       if (mounted) {
         setState(() {
-          _appVersion = 'App Version $ver';
+          _appVersion = ver.isNotEmpty ? 'App Version $ver' : '';
         });
       }
     } catch (e) {
       debugPrint('Error loading app version: $e');
       if (mounted) {
         setState(() {
-          _appVersion = 'App Version 8.0.1';
+          _appVersion = '';
         });
       }
     }

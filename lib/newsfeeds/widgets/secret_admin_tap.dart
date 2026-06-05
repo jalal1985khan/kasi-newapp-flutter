@@ -20,7 +20,7 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
   DateTime? _lastTapTime;
   static const int _requiredTaps = 5;
   final AuthService _authService = AuthService();
-  String _appVersion = 'v8.0.1';
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -33,14 +33,14 @@ class _SecretAdminTapState extends State<SecretAdminTap> {
       final ver = await UpdateService.getResolvedVersion();
       if (mounted) {
         setState(() {
-          _appVersion = 'v$ver';
+          _appVersion = ver.isNotEmpty ? 'v$ver' : '';
         });
       }
     } catch (e) {
       debugPrint('Error loading app version in SecretAdminTap: $e');
       if (mounted) {
         setState(() {
-          _appVersion = 'v8.0.1';
+          _appVersion = '';
         });
       }
     }
